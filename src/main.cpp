@@ -5,7 +5,7 @@
 #include <Servo.h>
 #include <AccelStepper.h>
 
-RF24 radio(7, 8); // CE, CSN
+RF24 radio(7, 8);  // CE, CSN
 
 const byte address[6] = "00001";
 
@@ -13,7 +13,7 @@ struct chServo {
   Servo servo;
   int value = 128;
   int minValue = 45;
-  float valueScaler = 1;
+  float valueScaler = 0.75;
   char pin;
   bool valueAsAngle = true;
 } chServo[12];
@@ -31,42 +31,52 @@ struct chStepper {
 
 struct Data_Package {
   byte channel[6];
-} data;
+} data_recive;
+
+struct Data_Package_return {
+  byte x = 100;
+} data_send;
 
 bool reciveData() {
+  radio.startListening();
+
   bool recived = false;
   long time = millis();
 
   while(!recived)
   {
-    if (radio.available()) {
-      radio.read(&data, sizeof(data));
+    if (radio.available())
+    {
+      radio.read(&data_recive, sizeof(data_recive));
 
       recived = true;
     }
-
-    if (millis() - time > 1000)
+    else if (millis() - time > 1000)
       return false;
   }
 
-  Serial.print("reciveTime");
+  Serial.print("reviveTime: ");
   Serial.print(millis() - time);
-  Serial.print(";  ");
+  Serial.print(" || ");
+
   return true;
+}
+
+void sendData() {
+  radio.stopListening();
+  
+  radio.write(&data_send, sizeof(data_send));
 }
 
 void updateOutputChannels() {
   // Servo / ESC
   for (int i = 0; i < int (sizeof(chServo) / sizeof(chServo[0])); i++) {
-    int value = constrain(int (chServo[i].value * chServo[i].valueScaler) + chServo[i].minValue, 0, 255);
+    int value = int (chServo[i].value * chServo[i].valueScaler) + chServo[i].minValue;
 
     if (!chServo[i].valueAsAngle) {
-      value = map(value, 0, 255, 0, 180);  
+      value = map(value, 0, 255, 0, 180);
     }
-    else {
-      value = constrain(value, 0, 180);
-    }
-    
+
     chServo[i].servo.write(value);
   }
 
@@ -80,7 +90,7 @@ void updateOutputChannels() {
       digitalWrite(chStepper[i].enablePin, LOW);
 
       int value = int (chStepper[i].value * chStepper[i].valueScaler) + chStepper[i].minValue;
-      
+
       if (chStepper[i].valueAsAngle) {
         chStepper[i].stepper.moveTo(value);
         chStepper[i].stepper.run();
@@ -93,13 +103,12 @@ void updateOutputChannels() {
   }
 }
 
-
 void setup() {
   Serial.begin(9600);
-
-  // start radion communication
+  // start radio communication
   radio.begin();
   radio.openReadingPipe(0, address);
+  radio.openWritingPipe(address);
   radio.setPALevel(RF24_PA_MIN);
   radio.startListening();
 
@@ -133,17 +142,17 @@ void setup() {
   chStepper[3].stepPin = 39;
   chStepper[3].dirPin = 40;
   chStepper[3].enablePin = 41;
-  
-  chStepper[0].maxSpeed = 3000.00;
-  chStepper[1].maxSpeed = 3000.00;
-  chStepper[2].maxSpeed = 3000.00;
-  chStepper[3].maxSpeed = 3000.00;
-  chStepper[0].acceleration = 100.00;
-  chStepper[1].acceleration = 100.00;
-  chStepper[2].acceleration = 100.00;
-  chStepper[3].acceleration = 100.00;
 
-  for (int i = 0; i < int (sizeof(chStepper) / sizeof(chStepper[0])); i++) {
+  chStepper[0].maxSpeed = 2000.00;
+  chStepper[1].maxSpeed = 2000.00;
+  chStepper[2].maxSpeed = 2000.00;
+  chStepper[3].maxSpeed = 2000.00;
+  chStepper[0].acceleration = 75.00;
+  chStepper[1].acceleration = 75.00;
+  chStepper[2].acceleration = 75.00;
+  chStepper[3].acceleration = 75.00;
+
+  for (int i = 0; i < int (sizeof(chStepper) / ( sizeof(chStepper[0]))); i++) {
     pinMode(chStepper[i].enablePin, OUTPUT);
     AccelStepper stepperTemp(1, chStepper[i].stepPin, chStepper[i].dirPin);
     stepperTemp.setMaxSpeed(chStepper[i].maxSpeed);
@@ -153,21 +162,31 @@ void setup() {
 }
 
 void loop() {
+  // recive Data
   if (!reciveData())
-    Serial.println("no data connection!!!");
-  
-  for (int i = 0; i < int (sizeof(data.channel) / sizeof(data.channel[0])); i++)
-  {
-    Serial.print("ch");
-    Serial.print(i);
-    Serial.print(": ");
-    Serial.print(data.channel[i]);
-    Serial.print(";  ");
-  }
-  Serial.println();
+    Serial.print("no data connection!!!    ");
 
-  chServo[0].value = data.channel[0];
-  chStepper[1].value = data.channel[5];
+  for (int i = 0; i < int (sizeof(data_recive.channel) / sizeof(data_recive.channel[0])); i++)
+  {
+    Serial.print("ch: ");
+    Serial.print(i);
+    Serial.print(" - ");
+    Serial.print(data_recive.channel[i]);
+    Serial.print(" || ");
+  }
+
+  // send Data
+  sendData();
+
+
+  // alloocate recived data to outputs
+  chServo[0].value = data_recive.channel[0];
+  chStepper[0].value = data_recive.channel[5];
+
+
 
   updateOutputChannels();
+
+  Serial.println();
+  //delay(5);
 }
