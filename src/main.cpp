@@ -1,3 +1,78 @@
+#pragma region AccelStepper
+// Copyright (C) 2009 Mike McCauley
+// $Id: MultiStepper.pde,v 1.1 2011/01/05 01:51:01 mikem Exp mikem $
+#pragma endregion
+#pragma region NRF24
+/*
+ * See documentation at https://nRF24.github.io/RF24
+ * See License information at root directory of this library
+ * Author: Brendan Doherty (2bndy5)
+ */
+#pragma endregion
+#pragma region MPU6050
+// I2C device class (I2Cdev) demonstration Arduino sketch for MPU6050 class using DMP (MotionApps v2.0)
+// 6/21/2012 by Jeff Rowberg <jeff@rowberg.net>
+// Updates should (hopefully) always be available at https://github.com/jrowberg/i2cdevlib
+//
+// Changelog:
+//      2013-05-08 - added seamless Fastwire support
+//                 - added note about gyro calibration
+//      2012-06-21 - added note about Arduino 1.0.1 + Leonardo compatibility error
+//      2012-06-20 - improved FIFO overflow handling and simplified read process
+//      2012-06-19 - completely rearranged DMP initialization code and simplification
+//      2012-06-13 - pull gyro and accel data from FIFO packet instead of reading directly
+//      2012-06-09 - fix broken FIFO read sequence and change interrupt detection to RISING
+//      2012-06-05 - add gravity-compensated initial reference frame acceleration output
+//                 - add 3D math helper file to DMP6 example sketch
+//                 - add Euler output and Yaw/Pitch/Roll output formats
+//      2012-06-04 - remove accel offset clearing for better results (thanks Sungon Lee)
+//      2012-06-01 - fixed gyro sensitivity to be 2000 deg/sec instead of 250
+//      2012-05-30 - basic DMP initialization working
+
+/* ============================================
+I2Cdev device library code is placed under the MIT license
+Copyright (c) 2012 Jeff Rowberg
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+===============================================
+*/
+#pragma endregion
+#pragma region BMP280
+/***************************************************************************
+  This is a library for the BMP280 humidity, temperature & pressure sensor
+  This example shows how to take Sensor Events instead of direct readings
+  
+  Designed specifically to work with the Adafruit BMP280 Breakout
+  ----> http://www.adafruit.com/products/2651
+
+  These sensors use I2C or SPI to communicate, 2 or 4 pins are required
+  to interface.
+
+  Adafruit invests time and resources providing this open source code,
+  please support Adafruit and open-source hardware by purchasing products
+  from Adafruit!
+
+  Written by Limor Fried & Kevin Townsend for Adafruit Industries.
+  BSD license, all text above must be included in any redistribution
+ ***************************************************************************/
+#pragma endregion
+
 #include <Arduino.h>
 #include <SPI.h>
 #include <nRF24L01.h>
@@ -8,12 +83,18 @@
 #include "Wire.h"
 #include <MPU6050_6Axis_MotionApps20.h>
 #include "MPU6050.h"
+#include <Adafruit_BMP280.h>
+
 
 #define NRF24
 #define SERVO
 #define STEPPER
 #define READ_VOLTAGE
 #define MPU6050_READ
+#define BMP280
+
+char LED_PIN = 23;
+bool LED_state = false;
 
 #ifdef NRF24
 RF24 radio(7, 8);  // CE, CSN
@@ -121,6 +202,14 @@ volatile bool mpuInterrupt = false;     // indicates whether MPU interrupt pin h
 void dmpDataReady() {
     mpuInterrupt = true;
 }
+#endif
+
+#ifdef BMP280
+Adafruit_BMP280 bmp; // use I2C interface
+Adafruit_Sensor *bmp_temp = bmp.getTemperatureSensor();
+Adafruit_Sensor *bmp_pressure = bmp.getPressureSensor();
+
+sensors_event_t temp_event, pressure_event;
 #endif
 
 bool reciveData() {
@@ -311,6 +400,38 @@ void readMPU6050() {
   #endif
 }
 
+void readBMP280() {
+  #ifdef BMP280
+    bmp_temp->getEvent(&temp_event);
+    bmp_pressure->getEvent(&pressure_event);
+
+    Serial.print(F("Temperature = "));
+    Serial.print(temp_event.temperature);
+    Serial.print(" *C");
+    Serial.print(" || ");
+
+    Serial.print(F("Pressure = "));
+    Serial.print(pressure_event.pressure);
+    Serial.print(" hPa");
+    Serial.print(" || ");
+  #endif
+}
+
+void criticalError(int errorCode) {
+  if (Serial.available()) {
+    Serial.println("restart");
+    setup();
+    return;
+  }
+  
+  Serial.println(errorCode);
+  digitalWrite(LED_PIN, HIGH);
+  delay(250);
+  digitalWrite(LED_PIN, LOW);
+  delay(250);
+
+  criticalError(errorCode);
+}
 
 // ================================================================
 // ===                      INITIAL SETUP                       ===
@@ -319,75 +440,13 @@ void setup() {
   Serial.begin(9600);
 
   analogReadRes(12);
-  
-  #ifdef MPU6050_READ
-    // join I2C bus (I2Cdev library doesn't do this automatically)
-    #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-		#if defined (PARTICLE)
-			Wire.setSpeed(CLOCK_SPEED_400KHZ);
-			Wire.begin();
-		#else
-			Wire.begin();
-			TWBR = 24; // 400kHz I2C clock (200kHz if CPU is 8MHz)
-		#endif
-    #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
-        Fastwire::setup(400, true);
-    #endif
 
-    // initialize device
-    Serial.println(F("Initializing I2C devices..."));
-    mpu.initialize();
-
-    // verify connection
-    Serial.println(F("Testing device connections..."));
-    Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
-
-    // load and configure the DMP
-    Serial.println(F("Initializing DMP..."));
-    devStatus = mpu.dmpInitialize();
-
-    // supply your own gyro offsets here, scaled for min sensitivity
-    mpu.setXGyroOffset(220);
-    mpu.setYGyroOffset(76);
-    mpu.setZGyroOffset(-85);
-    mpu.setZAccelOffset(1788); // 1688 factory default for my test chip
-
-    // make sure it worked (returns 0 if so)
-    if (devStatus == 0) {
-        // turn on the DMP, now that it's ready
-        Serial.println(F("Enabling DMP..."));
-        mpu.setDMPEnabled(true);
-
-        // enable Arduino interrupt detection
-        Serial.println(F("Enabling interrupt detection (Arduino external interrupt 0)..."));
-	#if defined (PARTICLE)
-        attachInterrupt(D2, dmpDataReady, RISING);
-	#else
-        attachInterrupt(2, dmpDataReady, RISING);
-	#endif
-        mpuIntStatus = mpu.getIntStatus();
-
-        // set our DMP Ready flag so the main loop() function knows it's okay to use it
-        Serial.println(F("DMP ready! Waiting for first interrupt..."));
-        dmpReady = true;
-
-        // get expected DMP packet size for later comparison
-        packetSize = mpu.dmpGetFIFOPacketSize();
-    } else {
-        // ERROR!
-        // 1 = initial memory load failed
-        // 2 = DMP configuration updates failed
-        // (if it's going to break, usually the code will be 1)
-        Serial.print(F("DMP Initialization failed (code "));
-        Serial.print(devStatus);
-        Serial.println(F(")"));
-    }
-  #endif
-  
+  pinMode(LED_PIN, OUTPUT);
 
   #ifdef NRF24
     // start radio communication
-    radio.begin();
+    if (radio.begin())
+      criticalError(0);
     radio.openReadingPipe(0, address);
     radio.openWritingPipe(address);
     radio.setPALevel(RF24_PA_MIN);
@@ -460,6 +519,99 @@ void setup() {
     chVoltage[2].R2 = 2.00;
     chVoltage[3].R2 = 7.5;
   #endif
+
+  #ifdef MPU6050_READ
+    // join I2C bus (I2Cdev library doesn't do this automatically)
+    #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
+		#if defined (PARTICLE)
+			Wire.setSpeed(CLOCK_SPEED_400KHZ);
+			Wire.begin();
+		#else
+			Wire.begin();
+			TWBR = 24; // 400kHz I2C clock (200kHz if CPU is 8MHz)
+		#endif
+    #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
+        Fastwire::setup(400, true);
+    #endif
+
+    // initialize device
+    Serial.println(F("Initializing I2C devices..."));
+    mpu.initialize();
+
+    // verify connection
+    Serial.println(F("Testing device connections..."));
+    Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+
+    // load and configure the DMP
+    Serial.println(F("Initializing DMP..."));
+    devStatus = mpu.dmpInitialize();
+
+    // supply your own gyro offsets here, scaled for min sensitivity
+    mpu.setXGyroOffset(220);
+    mpu.setYGyroOffset(76);
+    mpu.setZGyroOffset(-85);
+    mpu.setZAccelOffset(1788); // 1688 factory default for my test chip
+
+    // make sure it worked (returns 0 if so)
+    if (devStatus == 0) {
+        // turn on the DMP, now that it's ready
+        Serial.println(F("Enabling DMP..."));
+        mpu.setDMPEnabled(true);
+
+        // enable Arduino interrupt detection
+        Serial.println(F("Enabling interrupt detection (Arduino external interrupt 0)..."));
+	#if defined (PARTICLE)
+        attachInterrupt(D2, dmpDataReady, RISING);
+	#else
+        attachInterrupt(2, dmpDataReady, RISING);
+	#endif
+        mpuIntStatus = mpu.getIntStatus();
+
+        // set our DMP Ready flag so the main loop() function knows it's okay to use it
+        Serial.println(F("DMP ready! Waiting for first interrupt..."));
+        dmpReady = true;
+
+        // get expected DMP packet size for later comparison
+        packetSize = mpu.dmpGetFIFOPacketSize();
+    } else {
+        // ERROR!
+        // 1 = initial memory load failed
+        // 2 = DMP configuration updates failed
+        // (if it's going to break, usually the code will be 1)
+        Serial.print(F("DMP Initialization failed (code "));
+        Serial.print(devStatus);
+        Serial.println(F(")"));
+        criticalError(1);
+    }
+  #endif
+
+  #ifdef BMP280
+    Serial.println(F("BMP280 Sensor event test"));
+
+    unsigned status;
+    status = bmp.begin(BMP280_ADDRESS_ALT, 0x60);
+    //status = bmp.begin();
+    if (!status) {
+      Serial.println(F("Could not find a valid BMP280 sensor, check wiring or "
+                        "try a different address!"));
+      Serial.print("SensorID was: 0x"); Serial.println(bmp.sensorID(),16);
+      Serial.print("        ID of 0xFF probably means a bad address, a BMP 180 or BMP 085\n");
+      Serial.print("   ID of 0x56-0x58 represents a BMP 280,\n");
+      Serial.print("        ID of 0x60 represents a BME 280.\n");
+      Serial.print("        ID of 0x61 represents a BME 680.\n");
+      
+      criticalError(2);
+    }
+
+    /* Default settings from datasheet. */
+    bmp.setSampling(Adafruit_BMP280::MODE_NORMAL,     /* Operating Mode. */
+                    Adafruit_BMP280::SAMPLING_X2,     /* Temp. oversampling */
+                    Adafruit_BMP280::SAMPLING_X16,    /* Pressure oversampling */
+                    Adafruit_BMP280::FILTER_X16,      /* Filtering. */
+                    Adafruit_BMP280::STANDBY_MS_500); /* Standby time. */
+
+    bmp_temp->printSensorDetails();
+  #endif
 }
 
 
@@ -468,32 +620,30 @@ void setup() {
 // ================================================================
 void loop() {
   
-  // if programming failed, don't try to do anything
-  if (!dmpReady) return;
-
-  // recive Data
-  if (reciveData()) {
-    for (int i = 0; i < int (sizeof(data_recive.channel) / sizeof(data_recive.channel[0])); i++)
-    {
-      Serial.print("ch: ");
-      Serial.print(i);
-      Serial.print(" - ");
-      Serial.print(data_recive.channel[i]);
-
-      if (data_recive.channel[i] < 10)
-        Serial.print("  ");
-      else if (data_recive.channel[i] < 100)
-        Serial.print(" ");
-      Serial.print(" || ");
+  #ifdef NRF24
+    // recive Data
+    if (reciveData()) {
+      for (int i = 0; i < int (sizeof(data_recive.channel) / sizeof(data_recive.channel[0])); i++)
+      {
+        Serial.print("ch: ");
+        Serial.print(i);
+        Serial.print(" - ");
+        Serial.print(data_recive.channel[i]);
+  
+        if (data_recive.channel[i] < 10)
+          Serial.print("  ");
+        else if (data_recive.channel[i] < 100)
+          Serial.print(" ");
+        Serial.print(" || ");
+      }
     }
-  }
-  else {
-    Serial.print("no data connection!!!    ");
-  }
-
-  // send Data
-  sendData();
-
+    else {
+      Serial.print("no data connection!!!    ");
+    }
+  
+    // send Data
+    sendData();
+  #endif
 
   readVoltage();
 
@@ -502,11 +652,18 @@ void loop() {
       readMPU6050();
   #endif
 
+  readBMP280();
+
+
   // alloocate recived data to outputs
   chServo[0].value = data_recive.channel[4];
   chStepper[0].value = data_recive.channel[2];
 
   
   updateOutputChannels();
+  
+  LED_state = !LED_state;
+  digitalWrite(LED_PIN, LED_state);
+
   Serial.println();
 }
