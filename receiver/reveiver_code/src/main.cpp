@@ -1,3 +1,33 @@
+// 
+    // Updates should (hopefully) always be available at https://github.com/Sir-Kuhnhero/DAVE--Digital-All-Vehicle-Electronics
+    //
+    // Changelog:
+    //      
+
+    /* ============================================
+    DAVE code is placed under the MIT license
+    Copyright (c) 2022 Sir-Kuhnhero
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+    THE SOFTWARE.
+    ===============================================
+    */
+
 #pragma region AccelStepper
     // Copyright (C) 2009 Mike McCauley
     // $Id: MultiStepper.pde,v 1.1 2011/01/05 01:51:01 mikem Exp mikem $
@@ -122,6 +152,7 @@ bool LED_state = false;
 
 int loopTime;
 
+
 #ifdef NRF24
     RF24 radio(7, 8);  // CE, CSN
 
@@ -136,7 +167,7 @@ int loopTime;
     } data_send;
 
     int reciveTime;  // time the NRF24 took to recive data
-    const int maxReciveTime = 25;  // max time the NRF24 will try reciving data 
+    const int maxReciveTime = 250;  // max time the NRF24 will try reciving data 
 #endif
 
 #ifdef SERVO
@@ -147,7 +178,7 @@ int loopTime;
       float valueScaler = 1;
       char pin;
       bool valueAsAngle = false;
-    } chServo[11];
+    } chServo[3];
 #endif
 
 #ifdef STEPPER
@@ -160,7 +191,7 @@ int loopTime;
       int stepPin, dirPin, enablePin;
       bool valueAsAngle = false;
       bool active = true;
-    } chStepper[4];
+    } chStepper[3];
 #endif
 
 #ifdef READ_VOLTAGE
@@ -576,14 +607,14 @@ void setup() {
 
   pinMode(LED_PIN, OUTPUT);
 
+
   #ifdef NRF24
       // start radio communication
       if (!radio.begin())
         criticalError(0);
       radio.openReadingPipe(0, address);
-      //radio.setDataRate(RF24_250KBPS);
       radio.openWritingPipe(address);
-      radio.setPALevel(RF24_PA_HIGH);
+      radio.setPALevel(RF24_PA_MIN);
       radio.startListening();
   #endif
 
@@ -823,7 +854,10 @@ void loop() {
 
       }
       else {
-      
+        // if there is no input recived -> reset data to default values
+        for (int i = 0; i < int (sizeof(data_recive) / sizeof(data_recive.channel[0])); i++) {
+          data_recive.channel[i] = 128;
+        }
       }
 
       // send Data
@@ -840,7 +874,7 @@ void loop() {
   readBMP280();
   readHMC5883();
 
-
+  
   // alloocate recived data to outputs
   #ifdef SERVO
       
