@@ -348,9 +348,10 @@ bool receiveData() {
           NRF_receive = true;
           received = true;
         }
-        else if (receiveTime > maxReceiveTime)
+        else if (receiveTime > maxReceiveTime) {
           NRF_receive = false;
           return false;
+        }
       }
   #endif
 
@@ -508,29 +509,31 @@ void writeHeader() {
   #endif
 }
 
-void logData() {
+bool logData() {
   #ifdef SD_Card
-      String stringToWrite = "";
       
 
-      logFile = SD.open(curFileName, FILE_WRITE);
-      logFile.print(loopTime);
-      logFile.print(";");
-      logFile.print(receiveTime);
-      logFile.print(";");
-      logFile.print("false");
+      //logFile = SD.open(curFileName, FILE_WRITE);
+      //logFile.print(loopTime);
+      //logFile.print(";");
+      //logFile.print(receiveTime);
+      //logFile.print(";");
+      //logFile.print("false");
   #endif
 
   #ifdef dataLogging
+      if (!SD.open(curFileName, FILE_WRITE)) return false;
+
       String stringToWrite = "";
 
       #pragma region logLoopTime
-          stringToWrite += loopTime + ";";
+          stringToWrite = stringToWrite + ";" + loopTime;
       #pragma endregion
 
       #ifdef NRF24_LOG
           // currently only receiveTime and conPass is being loged
-          stringToWrite += receiveTime + ";";
+          stringToWrite = stringToWrite + ";" + receiveTime;
+          stringToWrite = stringToWrite + ";" + NRF_receive;
       #endif
 
       #ifdef READ_VOLTAGE_LOG
@@ -628,9 +631,14 @@ void logData() {
           Serial.print(" || ");
       #endif
 
-      logFile.println();
+      logFile = SD.open(curFileName, FILE_WRITE);
+      Serial.println(stringToWrite);
+      logFile.println(stringToWrite);
       logFile.close();
+      return true;
   #endif
+
+  return false;
 }
 
 
@@ -1097,10 +1105,7 @@ void loop() {
 
   #ifdef NRF24
       // receive Data
-      if (receiveData()) {
-
-      }
-      else {
+      if (!receiveData()) {
         // if there is no input received -> reset data to default values
         for (int i = 0; i < int (sizeof(data_receive) / sizeof(data_receive.channel[0])); i++) {
           data_receive.channel[i] = 128;
