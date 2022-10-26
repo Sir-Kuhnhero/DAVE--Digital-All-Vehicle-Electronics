@@ -5,7 +5,7 @@
     //      
 
     /* ============================================
-    DAVE code is placed under the MIT license
+    DAVE code is placed under the MIT license. This does not include code provided by a library covered under the original author's license.
     Copyright (c) 2022 Sir-Kuhnhero
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -135,6 +135,7 @@
 #include "MPU6050.h"
 #include <Adafruit_BMP280.h>
 #include <DFRobot_QMC5883.h>
+#include "SdFat.h"
 
 
 #define NRF24
@@ -144,8 +145,24 @@
 //#define MPU6050_READ
 //#define BMP280
 //#define HMC5883
+#define SD_Card
+#ifdef SD_Card
+    #define dataLogging
+    #ifdef dataLogging
+        #define NRF24_LOG
+        //#define SERVO_LOG
+        //#define STEPPER_LOG
+        //#define READ_VOLTAGE_LOG
+        //#define MPU6050_READ_LOG
+        //#define BMP280_LOG
+        //#define HMC5883_LOG
+    #endif
+#endif
 
-#define SERIAL_OUTPUT
+#define DEBUG
+#ifdef DEBUG
+    //#define SERIAL_OUTPUT  // if defined all sensor data will be printed
+#endif
 
 char LED_PIN = 23;
 bool LED_state = false;
@@ -153,21 +170,23 @@ bool LED_state = false;
 int loopTime;
 
 
+
 #ifdef NRF24
     RF24 radio(7, 8);  // CE, CSN
 
     const byte address[6] = "00001";
 
-    struct Data_Package_recive {
+    struct Data_Package_receive {
       byte channel[6];
-    } data_recive;
+    } data_receive;
 
     struct Data_Package_send {
       byte x = 100;
     } data_send;
 
-    int reciveTime;  // time the NRF24 took to recive data
-    const int maxReciveTime = 250;  // max time the NRF24 will try reciving data 
+    int receiveTime;  // time the NRF24 took to receive data
+    const int maxReceiveTime = 250;  // max time the NRF24 will try reciving data
+    boolean NRF_receive = false;
 #endif
 
 #ifdef SERVO
@@ -283,29 +302,59 @@ int loopTime;
     sVector_t mag;
 #endif
 
-bool reciveData() {
-  bool recived = false;
+#ifdef SD_Card
+    // SDCARD_SS_PIN is defined for the built-in SD on some boards.
+    const uint8_t SD_CS_PIN = SS;
+    //const uint8_t SD_CS_PIN = SDCARD_SS_PIN;
+
+    // Try max SPI clock for an SD. Reduce SPI_CLOCK if errors occur.
+    #define SPI_CLOCK SD_SCK_MHZ(50)
+
+    // Try to select the best SD card configuration.
+    #if HAS_SDIO_CLASS
+    #define SD_CONFIG SdioConfig(FIFO_SDIO)
+    #elif  ENABLE_DEDICATED_SPI
+    #define SD_CONFIG SdSpiConfig(SD_CS_PIN, DEDICATED_SPI, SPI_CLOCK)
+    #else  // HAS_SDIO_CLASS
+    #define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SPI_CLOCK)
+    #endif  // HAS_SDIO_CLASS
+
+
+    SdFat SD;
+    FsFile logFile;
+    //FsFile logFile;
+
+    //FsFile logFile;
+    String fileName = "log_";
+    String curFileName;
+
+#endif
+
+bool receiveData() {
+  bool received = false;
 
   #ifdef NRF24
       radio.startListening();
 
       long time = millis();
 
-      // try reciving till something is recived or a time of maxReciveTime is reached
-      while(!recived) {
-        reciveTime = millis() - time;
+      // try reciving till something is received or a time of maxReceiveTime is reached
+      while(!received) {
+        receiveTime = millis() - time;
 
         if (radio.available()) {
-          radio.read(&data_recive, sizeof(data_recive));
+          radio.read(&data_receive, sizeof(data_receive));
 
-          recived = true;
+          NRF_receive = true;
+          received = true;
         }
-        else if (reciveTime > maxReciveTime)
+        else if (receiveTime > maxReceiveTime)
+          NRF_receive = false;
           return false;
       }
   #endif
 
-  return recived;
+  return received;
 }
 
 void sendData() {
@@ -447,6 +496,143 @@ void readHMC5883() {
   #endif
 }
 
+void writeHeader() {
+  #ifdef SD_Card
+      logFile.print("loopTime");
+      logFile.print(";");
+      logFile.print("receiveTime");
+      logFile.print(";");
+      logFile.print("ConPass");
+      logFile.println();
+      logFile.close();
+  #endif
+}
+
+void logData() {
+  #ifdef SD_Card
+      String stringToWrite = "";
+      
+
+      logFile = SD.open(curFileName, FILE_WRITE);
+      logFile.print(loopTime);
+      logFile.print(";");
+      logFile.print(receiveTime);
+      logFile.print(";");
+      logFile.print("false");
+  #endif
+
+  #ifdef dataLogging
+      String stringToWrite = "";
+
+      #pragma region logLoopTime
+          stringToWrite += loopTime + ";";
+      #pragma endregion
+
+      #ifdef NRF24_LOG
+          // currently only receiveTime and conPass is being loged
+          stringToWrite += receiveTime + ";";
+      #endif
+
+      #ifdef READ_VOLTAGE_LOG
+          for (int i = 0; i < int (sizeof(chVoltage) / sizeof(chVoltage[0])); i++) {
+            Serial.print("v: ");
+            Serial.print(i);
+            Serial.print(" - ");
+            Serial.print(chVoltage[i].value);
+            Serial.print(" || ");
+          }
+      #endif
+
+      #ifdef MPU6050_READ_LOG
+          #ifdef OUTPUT_READABLE_QUATERNION
+              // display quaternion values in easy matrix form: w x y z
+              Serial.print("quat: ");
+              Serial.print(q.w);
+              Serial.print(", ");
+              Serial.print(q.x);
+              Serial.print(", ");
+              Serial.print(q.y);
+              Serial.print(", ");
+              Serial.print(q.z);
+              Serial.print(" || ");
+          #endif
+
+          #ifdef OUTPUT_READABLE_EULER
+              // display Euler angles in degrees
+              Serial.print("euler: ");
+              Serial.print(euler[0] * 180/M_PI);
+              Serial.print(", ");
+              Serial.print(euler[1] * 180/M_PI);
+              Serial.print(", ");
+              Serial.print(euler[2] * 180/M_PI);
+              Serial.print(" || ");
+          #endif
+
+          #ifdef OUTPUT_READABLE_YAWPITCHROLL
+              // display Euler angles in degrees
+              Serial.print("ypr: ");
+              Serial.print(ypr[0] * 180/M_PI);
+              Serial.print(", ");
+              Serial.print(ypr[1] * 180/M_PI);
+              Serial.print(", ");
+              Serial.print(ypr[2] * 180/M_PI);
+              Serial.print(" || ");
+          #endif
+
+          #ifdef OUTPUT_READABLE_REALACCEL
+              // display real acceleration, adjusted to remove gravity
+              Serial.print("areal: ");
+              Serial.print(aaReal.x);
+              Serial.print(", ");
+              Serial.print(aaReal.y);
+              Serial.print(", ");
+              Serial.print(aaReal.z);
+              Serial.print(" || ");
+          #endif
+
+          #ifdef OUTPUT_READABLE_WORLDACCEL
+              // display initial world-frame acceleration, adjusted to remove gravity
+              // and rotated based on known orientation from quaternion
+              Serial.print("aworld: ");
+              Serial.print(aaWorld.x);
+              Serial.print(", ");
+              Serial.print(aaWorld.y);
+              Serial.print(", ");
+              Serial.println(aaWorld.z);
+              Serial.print(" || ");
+          #endif
+      #endif
+
+      #ifdef BMP280_LOG
+          Serial.print(F("Temperature = "));
+          Serial.print(temp_event.temperature);
+          Serial.print(" *C");
+          Serial.print(" || ");
+
+          Serial.print(F("Pressure = "));
+          Serial.print(pressure_event.pressure);
+          Serial.print(" hPa");
+          Serial.print(" || ");
+      #endif
+
+      #ifdef HMC5883_LOG
+          Serial.print("X:");
+          Serial.print(mag.XAxis);
+          Serial.print(" Y:");
+          Serial.print(mag.YAxis);
+          Serial.print(" Z:");
+          Serial.print(mag.ZAxis);
+          Serial.print(" | ");
+          Serial.print("Degress = ");
+          Serial.print(mag.HeadingDegress);
+          Serial.print(" || ");
+      #endif
+
+      logFile.println();
+      logFile.close();
+  #endif
+}
+
 
 void criticalError(int errorCode) {
   // this funktion will keep on looping until an input to the Serial line restarts the Teensy
@@ -481,18 +667,18 @@ void outputDataOverSerial() {
 
       #ifdef NRF24
           Serial.print("reviveTime: ");
-          Serial.print(reciveTime);
+          Serial.print(receiveTime);
           Serial.print(" || ");
 
-          for (int i = 0; i < int (sizeof(data_recive.channel) / sizeof(data_recive.channel[0])); i++) {
+          for (int i = 0; i < int (sizeof(data_receive.channel) / sizeof(data_receive.channel[0])); i++) {
             Serial.print("ch: ");
             Serial.print(i);
             Serial.print(" - ");
-            Serial.print(data_recive.channel[i]);
+            Serial.print(data_receive.channel[i]);
 
-            if (data_recive.channel[i] < 10)
+            if (data_receive.channel[i] < 10)
               Serial.print("  ");
-            else if (data_recive.channel[i] < 100)
+            else if (data_receive.channel[i] < 100)
               Serial.print(" ");
             Serial.print(" || ");
           }
@@ -606,6 +792,21 @@ void setup() {
   analogReadRes(12);
 
   pinMode(LED_PIN, OUTPUT);
+  
+  #ifdef DEBUG
+      // wait for USB connection
+      while (!Serial) {
+            delay(100);
+      }
+
+      Serial.println("press any button to start");
+
+      // wait for serial input
+      while (!Serial.available()) {
+            delay(100);
+      }
+      Serial.clear();
+  #endif
 
 
   #ifdef NRF24
@@ -839,6 +1040,52 @@ void setup() {
         // Serial.println(compass.getDataRate());
       }
   #endif
+
+  #ifdef SD_Card
+      Serial.print("Initializing SD card...");
+  
+      // see if the card is present and can be initialized:
+      if (!SD.begin(SD_CONFIG)) {
+        Serial.println("Card failed, or not present");
+        // don't do anything more:
+        return;
+      }
+      Serial.println("card initialized.");
+
+
+      // starts with tempFileName as fileName. If it already exists increment the last number 
+      String tempFileName = fileName + "00.csv";
+      int i = 0;
+
+      while (SD.exists(tempFileName)) {
+        i++;
+        if (i < 10) {
+          tempFileName = fileName + "0" + i + ".csv";
+        }
+        else {
+          tempFileName = fileName +  i + ".csv";
+        }
+      }
+
+      curFileName = tempFileName;
+      Serial.println(curFileName);
+      //if (!logFile.open(tempFileName, FILE_WRITE)) {
+      //  Serial.println(F("file.open failed"));
+      //}
+
+      logFile = SD.open(curFileName, FILE_WRITE);
+      //logFile.open(SD, curFileName, O_RDWR);
+      //logFile.open(curFileName, O_RDWR);
+      //logFile.open(tempFileName, FILE_WRITE);
+
+      if (SD.exists(tempFileName)) {
+        Serial.println("new file created");
+      }
+
+      //logFile = SD.open(curFileName);
+
+      writeHeader();
+  #endif
 }
 
 
@@ -849,14 +1096,14 @@ void loop() {
   int long curTime = millis();
 
   #ifdef NRF24
-      // recive Data
-      if (reciveData()) {
+      // receive Data
+      if (receiveData()) {
 
       }
       else {
-        // if there is no input recived -> reset data to default values
-        for (int i = 0; i < int (sizeof(data_recive) / sizeof(data_recive.channel[0])); i++) {
-          data_recive.channel[i] = 128;
+        // if there is no input received -> reset data to default values
+        for (int i = 0; i < int (sizeof(data_receive) / sizeof(data_receive.channel[0])); i++) {
+          data_receive.channel[i] = 128;
         }
       }
 
@@ -875,7 +1122,7 @@ void loop() {
   readHMC5883();
 
   
-  // alloocate recived data to outputs
+  // alloocate received data to outputs
   #ifdef SERVO
       
   #endif
@@ -890,7 +1137,10 @@ void loop() {
   LED_state = !LED_state;  // blink LED
   digitalWrite(LED_PIN, LED_state);
 
-  loopTime = millis() - curTime;
-
   outputDataOverSerial();  // output all Values to Serial monitor (if defined)
+  logData();
+
+  delay(100);
+
+  loopTime = millis() - curTime;
 }
