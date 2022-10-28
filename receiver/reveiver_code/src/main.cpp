@@ -125,8 +125,6 @@
 
 #include <Arduino.h>
 #include <SPI.h>
-#include <nRF24L01.h>
-#include <RF24.h>
 #include <Servo.h>
 #include <AccelStepper.h>
 #include <I2Cdev.h>
@@ -145,7 +143,7 @@
 //#define MPU6050_READ
 //#define BMP280
 //#define HMC5883
-#define SD_Card
+//#define SD_Card
 #ifdef SD_Card
     #define dataLogging
     #ifdef dataLogging
@@ -167,24 +165,8 @@ bool LED_state = false;
 
 int loopTime;
 
-
-
 #ifdef NRF24
-    RF24 radio(7, 8);  // CE, CSN
-
-    const byte address[6] = "00001";
-
-    struct Data_Package_receive {
-      byte channel[6];
-    } data_receive;
-
-    struct Data_Package_send {
-      byte x = 100;
-    } data_send;
-
-    long receiveTime;  // time the NRF24 took to receive data
-    const int maxReceiveTime = 250;  // max time the NRF24 will try reciving data
-    boolean NRF_receive = false;
+    #include "radio.h"
 #endif
 
 #ifdef SERVO
@@ -330,41 +312,6 @@ int loopTime;
 
 #endif
 
-bool receiveData() {
-  bool received = false;
-
-  #ifdef NRF24
-      radio.startListening();
-
-      long time = millis();
-
-      // try reciving till something is received or a time of maxReceiveTime is reached
-      while(!received) {
-        receiveTime = millis() - time;
-
-        if (radio.available()) {
-          radio.read(&data_receive, sizeof(data_receive));
-
-          NRF_receive = true;
-          received = true;
-        }
-        else if (receiveTime > maxReceiveTime) {
-          NRF_receive = false;
-          return false;
-        }
-      }
-  #endif
-
-  return received;
-}
-
-void sendData() {
-  #ifdef NRF24
-      radio.stopListening();
-
-      radio.write(&data_send, sizeof(data_send));
-  #endif
-}
 
 void updateOutputChannels() {
   #ifdef SERVO
@@ -835,13 +782,16 @@ void setup() {
 
 
   #ifdef NRF24
-      // start radio communication
-      if (!radio.begin())
+                          //// start radio communication
+                          //if (!radio.begin())
+                          //  criticalError(0);
+                          //radio.openReadingPipe(0, address);
+                          //radio.openWritingPipe(address);
+                          //radio.setPALevel(RF24_PA_MIN);
+                          //radio.startListening();
+      if (!NRF_init()) {
         criticalError(0);
-      radio.openReadingPipe(0, address);
-      radio.openWritingPipe(address);
-      radio.setPALevel(RF24_PA_MIN);
-      radio.startListening();
+      }
   #endif
 
   #ifdef SERVO
@@ -1122,15 +1072,13 @@ void loop() {
 
   #ifdef NRF24
       // receive Data
-      if (!receiveData()) {
+      if (!NRF_receive()) {
         // if there is no input received -> reset data to default values
-        for (int i = 0; i < int (sizeof(data_receive) / sizeof(data_receive.channel[0])); i++) {
-          data_receive.channel[i] = 128;
-        }
+        NRF_failsave();
       }
 
       // send Data
-      //sendData();
+      //NRF_send();
   #endif
 
   readVoltage();
