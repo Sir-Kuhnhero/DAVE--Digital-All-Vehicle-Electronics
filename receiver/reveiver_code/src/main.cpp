@@ -150,8 +150,6 @@
     #define dataLogging
     #ifdef dataLogging
         #define NRF24_LOG
-        //#define SERVO_LOG
-        //#define STEPPER_LOG
         //#define READ_VOLTAGE_LOG
         //#define MPU6050_READ_LOG
         //#define BMP280_LOG
@@ -184,7 +182,7 @@ int loopTime;
       byte x = 100;
     } data_send;
 
-    int receiveTime;  // time the NRF24 took to receive data
+    long receiveTime;  // time the NRF24 took to receive data
     const int maxReceiveTime = 250;  // max time the NRF24 will try reciving data
     boolean NRF_receive = false;
 #endif
@@ -233,14 +231,14 @@ int loopTime;
     // (in degrees) calculated from the quaternions coming from the FIFO.
     // Note that Euler angles suffer from gimbal lock (for more info, see
     // http://en.wikipedia.org/wiki/Gimbal_lock)
-    #define OUTPUT_READABLE_EULER
+    //#define OUTPUT_READABLE_EULER
 
     // uncomment "OUTPUT_READABLE_YAWPITCHROLL" if you want to see the yaw/
     // pitch/roll angles (in degrees) calculated from the quaternions coming
     // from the FIFO. Note this also requires gravity vector calculations.
     // Also note that yaw/pitch/roll angles suffer from gimbal lock (for
     // more info, see: http://en.wikipedia.org/wiki/Gimbal_lock)
-    //#define OUTPUT_READABLE_YAWPITCHROLL
+    #define OUTPUT_READABLE_YAWPITCHROLL
 
     // uncomment "OUTPUT_READABLE_REALACCEL" if you want to see acceleration
     // components with gravity removed. This acceleration reference frame is
@@ -327,6 +325,8 @@ int loopTime;
     //FsFile logFile;
     String fileName = "log_";
     String curFileName;
+
+    long sdEntry = 0; // each time log data is written sdEntry increases by 1 -> acts as identifier
 
 #endif
 
@@ -497,34 +497,89 @@ void readHMC5883() {
   #endif
 }
 
-void writeHeader() {
-  #ifdef SD_Card
-      logFile.print("loopTime");
-      logFile.print(";");
-      logFile.print("receiveTime");
-      logFile.print(";");
-      logFile.print("ConPass");
-      logFile.println();
+bool writeHeader() {
+  #ifdef dataLogging
+      String stringToWrite = "entry";
+
+      #pragma region displayLoopTime
+          stringToWrite = stringToWrite + ";" + "loopTime";
+      #pragma endregion
+
+      #ifdef NRF24_LOG
+          stringToWrite = stringToWrite + ";" + "receiveTime";
+          stringToWrite = stringToWrite + ";" + "NRF_receive";
+      #endif
+
+      #ifdef READ_VOLTAGE_LOG
+          for (int i = 0; i < int (sizeof(chVoltage) / sizeof(chVoltage[0])); i++) {
+            stringToWrite = stringToWrite + ";" + "v: " + i;
+          }
+      #endif
+
+      #ifdef MPU6050_READ_LOG
+          #ifdef OUTPUT_READABLE_QUATERNION
+              // display quaternion values in easy matrix form: w x y z
+              stringToWrite = stringToWrite + ";" + "quat: w";
+              stringToWrite = stringToWrite + ";" + "quat: x";
+              stringToWrite = stringToWrite + ";" + "quat: y";
+              stringToWrite = stringToWrite + ";" + "quat: z";
+          #endif
+
+          #ifdef OUTPUT_READABLE_EULER
+              // display Euler angles in degrees
+              stringToWrite = stringToWrite + ";" + "euler: 0";
+              stringToWrite = stringToWrite + ";" + "euler: 1";
+              stringToWrite = stringToWrite + ";" + "euler: 2";
+          #endif
+
+          #ifdef OUTPUT_READABLE_YAWPITCHROLL
+              // display Euler angles in degrees
+              stringToWrite = stringToWrite + ";" + "ypr: 0";
+              stringToWrite = stringToWrite + ";" + "ypr: 1";
+              stringToWrite = stringToWrite + ";" + "ypr: 2";
+          #endif
+
+          #ifdef OUTPUT_READABLE_REALACCEL
+              // display real acceleration, adjusted to remove gravity
+              stringToWrite = stringToWrite + ";" + "areal: x";
+              stringToWrite = stringToWrite + ";" + "areal: y";
+              stringToWrite = stringToWrite + ";" + "areal: z";
+          #endif
+
+          #ifdef OUTPUT_READABLE_WORLDACCEL
+              // display initial world-frame acceleration, adjusted to remove gravity
+              // and rotated based on known orientation from quaternion
+              stringToWrite = stringToWrite + ";" + "aworld: x";
+              stringToWrite = stringToWrite + ";" + "aworld: y";
+              stringToWrite = stringToWrite + ";" + "aworld: z";
+          #endif
+      #endif
+
+      #ifdef BMP280_LOG
+          stringToWrite = stringToWrite + ";" + "Temperature (BMP, C*)";
+          stringToWrite = stringToWrite + ";" + "Pressure (hPa)";
+      #endif
+
+      #ifdef HMC5883_LOG
+          stringToWrite = stringToWrite + ";" + "mag.XAxis";
+          stringToWrite = stringToWrite + ";" + "mag.YAxis";
+          stringToWrite = stringToWrite + ";" + "mag.ZAxis";
+          stringToWrite = stringToWrite + ";" + "mag.HeadingDegress";
+      #endif
+
+      logFile = SD.open(curFileName, FILE_WRITE);
+      Serial.println(stringToWrite);
+      logFile.println(stringToWrite);
       logFile.close();
-  #endif
+      return true;
+    #endif
+    return false;
 }
 
 bool logData() {
-  #ifdef SD_Card
-      
-
-      //logFile = SD.open(curFileName, FILE_WRITE);
-      //logFile.print(loopTime);
-      //logFile.print(";");
-      //logFile.print(receiveTime);
-      //logFile.print(";");
-      //logFile.print("false");
-  #endif
-
   #ifdef dataLogging
-      if (!SD.open(curFileName, FILE_WRITE)) return false;
-
-      String stringToWrite = "";
+      String stringToWrite = sdEntry;
+      sdEntry++;
 
       #pragma region logLoopTime
           stringToWrite = stringToWrite + ";" + loopTime;
@@ -538,97 +593,59 @@ bool logData() {
 
       #ifdef READ_VOLTAGE_LOG
           for (int i = 0; i < int (sizeof(chVoltage) / sizeof(chVoltage[0])); i++) {
-            Serial.print("v: ");
-            Serial.print(i);
-            Serial.print(" - ");
-            Serial.print(chVoltage[i].value);
-            Serial.print(" || ");
+            stringToWrite = stringToWrite + ";" + chVoltage[i].value;
           }
       #endif
 
       #ifdef MPU6050_READ_LOG
           #ifdef OUTPUT_READABLE_QUATERNION
-              // display quaternion values in easy matrix form: w x y z
-              Serial.print("quat: ");
-              Serial.print(q.w);
-              Serial.print(", ");
-              Serial.print(q.x);
-              Serial.print(", ");
-              Serial.print(q.y);
-              Serial.print(", ");
-              Serial.print(q.z);
-              Serial.print(" || ");
+              // log quaternion values in easy matrix form: w x y z
+              stringToWrite = stringToWrite + ";" + q.w;
+              stringToWrite = stringToWrite + ";" + q.x;
+              stringToWrite = stringToWrite + ";" + q.y;
+              stringToWrite = stringToWrite + ";" + q.z;
           #endif
 
           #ifdef OUTPUT_READABLE_EULER
-              // display Euler angles in degrees
-              Serial.print("euler: ");
-              Serial.print(euler[0] * 180/M_PI);
-              Serial.print(", ");
-              Serial.print(euler[1] * 180/M_PI);
-              Serial.print(", ");
-              Serial.print(euler[2] * 180/M_PI);
-              Serial.print(" || ");
+              // log Euler angles in degrees
+              stringToWrite = stringToWrite + ";" + euler[0] * 180/M_PI;
+              stringToWrite = stringToWrite + ";" + euler[1] * 180/M_PI;
+              stringToWrite = stringToWrite + ";" + euler[2] * 180/M_PI;
           #endif
 
           #ifdef OUTPUT_READABLE_YAWPITCHROLL
-              // display Euler angles in degrees
-              Serial.print("ypr: ");
-              Serial.print(ypr[0] * 180/M_PI);
-              Serial.print(", ");
-              Serial.print(ypr[1] * 180/M_PI);
-              Serial.print(", ");
-              Serial.print(ypr[2] * 180/M_PI);
-              Serial.print(" || ");
+              // log Euler angles in degrees
+              stringToWrite = stringToWrite + ";" + ypr[0] * 180/M_PI;
+              stringToWrite = stringToWrite + ";" + ypr[1] * 180/M_PI;
+              stringToWrite = stringToWrite + ";" + ypr[2] * 180/M_PI;
           #endif
 
           #ifdef OUTPUT_READABLE_REALACCEL
-              // display real acceleration, adjusted to remove gravity
-              Serial.print("areal: ");
-              Serial.print(aaReal.x);
-              Serial.print(", ");
-              Serial.print(aaReal.y);
-              Serial.print(", ");
-              Serial.print(aaReal.z);
-              Serial.print(" || ");
+              // log real acceleration, adjusted to remove gravity
+              stringToWrite = stringToWrite + ";" + aaReal.x;
+              stringToWrite = stringToWrite + ";" + aaReal.y;
+              stringToWrite = stringToWrite + ";" + aaReal.z;
           #endif
 
           #ifdef OUTPUT_READABLE_WORLDACCEL
-              // display initial world-frame acceleration, adjusted to remove gravity
+              // log initial world-frame acceleration, adjusted to remove gravity
               // and rotated based on known orientation from quaternion
-              Serial.print("aworld: ");
-              Serial.print(aaWorld.x);
-              Serial.print(", ");
-              Serial.print(aaWorld.y);
-              Serial.print(", ");
-              Serial.println(aaWorld.z);
-              Serial.print(" || ");
+              stringToWrite = stringToWrite + ";" + aaWorld.x;
+              stringToWrite = stringToWrite + ";" + aaWorld.y;
+              stringToWrite = stringToWrite + ";" + aaWorld.z;
           #endif
       #endif
 
       #ifdef BMP280_LOG
-          Serial.print(F("Temperature = "));
-          Serial.print(temp_event.temperature);
-          Serial.print(" *C");
-          Serial.print(" || ");
-
-          Serial.print(F("Pressure = "));
-          Serial.print(pressure_event.pressure);
-          Serial.print(" hPa");
-          Serial.print(" || ");
+          stringToWrite = stringToWrite + ";" + temp_event.temperature;
+          stringToWrite = stringToWrite + ";" + pressure_event.pressure;
       #endif
 
       #ifdef HMC5883_LOG
-          Serial.print("X:");
-          Serial.print(mag.XAxis);
-          Serial.print(" Y:");
-          Serial.print(mag.YAxis);
-          Serial.print(" Z:");
-          Serial.print(mag.ZAxis);
-          Serial.print(" | ");
-          Serial.print("Degress = ");
-          Serial.print(mag.HeadingDegress);
-          Serial.print(" || ");
+          stringToWrite = stringToWrite + ";" + mag.XAxis;
+          stringToWrite = stringToWrite + ";" + mag.YAxis;
+          stringToWrite = stringToWrite + ";" + mag.ZAxis;
+          stringToWrite = stringToWrite + ";" + mag.HeadingDegress;
       #endif
 
       logFile = SD.open(curFileName, FILE_WRITE);
@@ -1144,8 +1161,6 @@ void loop() {
 
   outputDataOverSerial();  // output all Values to Serial monitor (if defined)
   logData();
-
-  delay(100);
 
   loopTime = millis() - curTime;
 }
