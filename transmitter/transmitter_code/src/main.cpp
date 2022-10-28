@@ -5,7 +5,7 @@
     //      
 
     /* ============================================
-    DAVE code is placed under the MIT license
+    DAVE code is placed under the MIT license. This does not include code provided by a library covered under the original author's license.
     Copyright (c) 2022 Sir-Kuhnhero
 
     Permission is hereby granted, free of charge, to any person obtaining a copy

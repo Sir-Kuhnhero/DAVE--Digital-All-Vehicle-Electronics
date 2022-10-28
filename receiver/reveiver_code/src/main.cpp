@@ -5,7 +5,7 @@
     //      
 
     /* ============================================
-    DAVE code is placed under the MIT license
+    DAVE code is placed under the MIT license. This does not include code provided by a library covered under the original author's license.
     Copyright (c) 2022 Sir-Kuhnhero
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -135,6 +135,7 @@
 #include "MPU6050.h"
 #include <Adafruit_BMP280.h>
 #include <DFRobot_QMC5883.h>
+#include "SdFat.h"
 
 
 #define NRF24
@@ -144,8 +145,22 @@
 //#define MPU6050_READ
 //#define BMP280
 //#define HMC5883
+#define SD_Card
+#ifdef SD_Card
+    #define dataLogging
+    #ifdef dataLogging
+        #define NRF24_LOG
+        //#define READ_VOLTAGE_LOG
+        //#define MPU6050_READ_LOG
+        //#define BMP280_LOG
+        //#define HMC5883_LOG
+    #endif
+#endif
 
-#define SERIAL_OUTPUT
+#define DEBUG
+#ifdef DEBUG
+    //#define SERIAL_OUTPUT  // if defined all sensor data will be printed
+#endif
 
 char LED_PIN = 23;
 bool LED_state = false;
@@ -153,21 +168,23 @@ bool LED_state = false;
 int loopTime;
 
 
+
 #ifdef NRF24
     RF24 radio(7, 8);  // CE, CSN
 
     const byte address[6] = "00001";
 
-    struct Data_Package_recive {
+    struct Data_Package_receive {
       byte channel[6];
-    } data_recive;
+    } data_receive;
 
     struct Data_Package_send {
       byte x = 100;
     } data_send;
 
-    int reciveTime;  // time the NRF24 took to recive data
-    const int maxReciveTime = 250;  // max time the NRF24 will try reciving data 
+    long receiveTime;  // time the NRF24 took to receive data
+    const int maxReceiveTime = 250;  // max time the NRF24 will try reciving data
+    boolean NRF_receive = false;
 #endif
 
 #ifdef SERVO
@@ -214,14 +231,14 @@ int loopTime;
     // (in degrees) calculated from the quaternions coming from the FIFO.
     // Note that Euler angles suffer from gimbal lock (for more info, see
     // http://en.wikipedia.org/wiki/Gimbal_lock)
-    #define OUTPUT_READABLE_EULER
+    //#define OUTPUT_READABLE_EULER
 
     // uncomment "OUTPUT_READABLE_YAWPITCHROLL" if you want to see the yaw/
     // pitch/roll angles (in degrees) calculated from the quaternions coming
     // from the FIFO. Note this also requires gravity vector calculations.
     // Also note that yaw/pitch/roll angles suffer from gimbal lock (for
     // more info, see: http://en.wikipedia.org/wiki/Gimbal_lock)
-    //#define OUTPUT_READABLE_YAWPITCHROLL
+    #define OUTPUT_READABLE_YAWPITCHROLL
 
     // uncomment "OUTPUT_READABLE_REALACCEL" if you want to see acceleration
     // components with gravity removed. This acceleration reference frame is
@@ -283,29 +300,62 @@ int loopTime;
     sVector_t mag;
 #endif
 
-bool reciveData() {
-  bool recived = false;
+#ifdef SD_Card
+    // SDCARD_SS_PIN is defined for the built-in SD on some boards.
+    const uint8_t SD_CS_PIN = SS;
+    //const uint8_t SD_CS_PIN = SDCARD_SS_PIN;
+
+    // Try max SPI clock for an SD. Reduce SPI_CLOCK if errors occur.
+    #define SPI_CLOCK SD_SCK_MHZ(50)
+
+    // Try to select the best SD card configuration.
+    #if HAS_SDIO_CLASS
+    #define SD_CONFIG SdioConfig(FIFO_SDIO)
+    #elif  ENABLE_DEDICATED_SPI
+    #define SD_CONFIG SdSpiConfig(SD_CS_PIN, DEDICATED_SPI, SPI_CLOCK)
+    #else  // HAS_SDIO_CLASS
+    #define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SPI_CLOCK)
+    #endif  // HAS_SDIO_CLASS
+
+
+    SdFat SD;
+    FsFile logFile;
+    //FsFile logFile;
+
+    //FsFile logFile;
+    String fileName = "log_";
+    String curFileName;
+
+    long sdEntry = 0; // each time log data is written sdEntry increases by 1 -> acts as identifier
+
+#endif
+
+bool receiveData() {
+  bool received = false;
 
   #ifdef NRF24
       radio.startListening();
 
       long time = millis();
 
-      // try reciving till something is recived or a time of maxReciveTime is reached
-      while(!recived) {
-        reciveTime = millis() - time;
+      // try reciving till something is received or a time of maxReceiveTime is reached
+      while(!received) {
+        receiveTime = millis() - time;
 
         if (radio.available()) {
-          radio.read(&data_recive, sizeof(data_recive));
+          radio.read(&data_receive, sizeof(data_receive));
 
-          recived = true;
+          NRF_receive = true;
+          received = true;
         }
-        else if (reciveTime > maxReciveTime)
+        else if (receiveTime > maxReceiveTime) {
+          NRF_receive = false;
           return false;
+        }
       }
   #endif
 
-  return recived;
+  return received;
 }
 
 void sendData() {
@@ -447,6 +497,167 @@ void readHMC5883() {
   #endif
 }
 
+bool writeHeader() {
+  #ifdef dataLogging
+      String stringToWrite = "entry";
+
+      #pragma region displayLoopTime
+          stringToWrite = stringToWrite + ";" + "loopTime";
+      #pragma endregion
+
+      #ifdef NRF24_LOG
+          stringToWrite = stringToWrite + ";" + "receiveTime";
+          stringToWrite = stringToWrite + ";" + "NRF_receive";
+      #endif
+
+      #ifdef READ_VOLTAGE_LOG
+          for (int i = 0; i < int (sizeof(chVoltage) / sizeof(chVoltage[0])); i++) {
+            stringToWrite = stringToWrite + ";" + "v: " + i;
+          }
+      #endif
+
+      #ifdef MPU6050_READ_LOG
+          #ifdef OUTPUT_READABLE_QUATERNION
+              // display quaternion values in easy matrix form: w x y z
+              stringToWrite = stringToWrite + ";" + "quat: w";
+              stringToWrite = stringToWrite + ";" + "quat: x";
+              stringToWrite = stringToWrite + ";" + "quat: y";
+              stringToWrite = stringToWrite + ";" + "quat: z";
+          #endif
+
+          #ifdef OUTPUT_READABLE_EULER
+              // display Euler angles in degrees
+              stringToWrite = stringToWrite + ";" + "euler: 0";
+              stringToWrite = stringToWrite + ";" + "euler: 1";
+              stringToWrite = stringToWrite + ";" + "euler: 2";
+          #endif
+
+          #ifdef OUTPUT_READABLE_YAWPITCHROLL
+              // display Euler angles in degrees
+              stringToWrite = stringToWrite + ";" + "ypr: 0";
+              stringToWrite = stringToWrite + ";" + "ypr: 1";
+              stringToWrite = stringToWrite + ";" + "ypr: 2";
+          #endif
+
+          #ifdef OUTPUT_READABLE_REALACCEL
+              // display real acceleration, adjusted to remove gravity
+              stringToWrite = stringToWrite + ";" + "areal: x";
+              stringToWrite = stringToWrite + ";" + "areal: y";
+              stringToWrite = stringToWrite + ";" + "areal: z";
+          #endif
+
+          #ifdef OUTPUT_READABLE_WORLDACCEL
+              // display initial world-frame acceleration, adjusted to remove gravity
+              // and rotated based on known orientation from quaternion
+              stringToWrite = stringToWrite + ";" + "aworld: x";
+              stringToWrite = stringToWrite + ";" + "aworld: y";
+              stringToWrite = stringToWrite + ";" + "aworld: z";
+          #endif
+      #endif
+
+      #ifdef BMP280_LOG
+          stringToWrite = stringToWrite + ";" + "Temperature (BMP, C*)";
+          stringToWrite = stringToWrite + ";" + "Pressure (hPa)";
+      #endif
+
+      #ifdef HMC5883_LOG
+          stringToWrite = stringToWrite + ";" + "mag.XAxis";
+          stringToWrite = stringToWrite + ";" + "mag.YAxis";
+          stringToWrite = stringToWrite + ";" + "mag.ZAxis";
+          stringToWrite = stringToWrite + ";" + "mag.HeadingDegress";
+      #endif
+
+      logFile = SD.open(curFileName, FILE_WRITE);
+      Serial.println(stringToWrite);
+      logFile.println(stringToWrite);
+      logFile.close();
+      return true;
+    #endif
+    return false;
+}
+
+bool logData() {
+  #ifdef dataLogging
+      String stringToWrite = sdEntry;
+      sdEntry++;
+
+      #pragma region logLoopTime
+          stringToWrite = stringToWrite + ";" + loopTime;
+      #pragma endregion
+
+      #ifdef NRF24_LOG
+          // currently only receiveTime and conPass is being loged
+          stringToWrite = stringToWrite + ";" + receiveTime;
+          stringToWrite = stringToWrite + ";" + NRF_receive;
+      #endif
+
+      #ifdef READ_VOLTAGE_LOG
+          for (int i = 0; i < int (sizeof(chVoltage) / sizeof(chVoltage[0])); i++) {
+            stringToWrite = stringToWrite + ";" + chVoltage[i].value;
+          }
+      #endif
+
+      #ifdef MPU6050_READ_LOG
+          #ifdef OUTPUT_READABLE_QUATERNION
+              // log quaternion values in easy matrix form: w x y z
+              stringToWrite = stringToWrite + ";" + q.w;
+              stringToWrite = stringToWrite + ";" + q.x;
+              stringToWrite = stringToWrite + ";" + q.y;
+              stringToWrite = stringToWrite + ";" + q.z;
+          #endif
+
+          #ifdef OUTPUT_READABLE_EULER
+              // log Euler angles in degrees
+              stringToWrite = stringToWrite + ";" + euler[0] * 180/M_PI;
+              stringToWrite = stringToWrite + ";" + euler[1] * 180/M_PI;
+              stringToWrite = stringToWrite + ";" + euler[2] * 180/M_PI;
+          #endif
+
+          #ifdef OUTPUT_READABLE_YAWPITCHROLL
+              // log Euler angles in degrees
+              stringToWrite = stringToWrite + ";" + ypr[0] * 180/M_PI;
+              stringToWrite = stringToWrite + ";" + ypr[1] * 180/M_PI;
+              stringToWrite = stringToWrite + ";" + ypr[2] * 180/M_PI;
+          #endif
+
+          #ifdef OUTPUT_READABLE_REALACCEL
+              // log real acceleration, adjusted to remove gravity
+              stringToWrite = stringToWrite + ";" + aaReal.x;
+              stringToWrite = stringToWrite + ";" + aaReal.y;
+              stringToWrite = stringToWrite + ";" + aaReal.z;
+          #endif
+
+          #ifdef OUTPUT_READABLE_WORLDACCEL
+              // log initial world-frame acceleration, adjusted to remove gravity
+              // and rotated based on known orientation from quaternion
+              stringToWrite = stringToWrite + ";" + aaWorld.x;
+              stringToWrite = stringToWrite + ";" + aaWorld.y;
+              stringToWrite = stringToWrite + ";" + aaWorld.z;
+          #endif
+      #endif
+
+      #ifdef BMP280_LOG
+          stringToWrite = stringToWrite + ";" + temp_event.temperature;
+          stringToWrite = stringToWrite + ";" + pressure_event.pressure;
+      #endif
+
+      #ifdef HMC5883_LOG
+          stringToWrite = stringToWrite + ";" + mag.XAxis;
+          stringToWrite = stringToWrite + ";" + mag.YAxis;
+          stringToWrite = stringToWrite + ";" + mag.ZAxis;
+          stringToWrite = stringToWrite + ";" + mag.HeadingDegress;
+      #endif
+
+      logFile = SD.open(curFileName, FILE_WRITE);
+      Serial.println(stringToWrite);
+      logFile.println(stringToWrite);
+      logFile.close();
+      return true;
+  #endif
+
+  return false;
+}
+
 
 void criticalError(int errorCode) {
   // this funktion will keep on looping until an input to the Serial line restarts the Teensy
@@ -481,18 +692,18 @@ void outputDataOverSerial() {
 
       #ifdef NRF24
           Serial.print("reviveTime: ");
-          Serial.print(reciveTime);
+          Serial.print(receiveTime);
           Serial.print(" || ");
 
-          for (int i = 0; i < int (sizeof(data_recive.channel) / sizeof(data_recive.channel[0])); i++) {
+          for (int i = 0; i < int (sizeof(data_receive.channel) / sizeof(data_receive.channel[0])); i++) {
             Serial.print("ch: ");
             Serial.print(i);
             Serial.print(" - ");
-            Serial.print(data_recive.channel[i]);
+            Serial.print(data_receive.channel[i]);
 
-            if (data_recive.channel[i] < 10)
+            if (data_receive.channel[i] < 10)
               Serial.print("  ");
-            else if (data_recive.channel[i] < 100)
+            else if (data_receive.channel[i] < 100)
               Serial.print(" ");
             Serial.print(" || ");
           }
@@ -606,6 +817,21 @@ void setup() {
   analogReadRes(12);
 
   pinMode(LED_PIN, OUTPUT);
+  
+  #ifdef DEBUG
+      // wait for USB connection
+      while (!Serial) {
+            delay(100);
+      }
+
+      Serial.println("press any button to start");
+
+      // wait for serial input
+      while (!Serial.available()) {
+            delay(100);
+      }
+      Serial.clear();
+  #endif
 
 
   #ifdef NRF24
@@ -839,6 +1065,52 @@ void setup() {
         // Serial.println(compass.getDataRate());
       }
   #endif
+
+  #ifdef SD_Card
+      Serial.print("Initializing SD card...");
+  
+      // see if the card is present and can be initialized:
+      if (!SD.begin(SD_CONFIG)) {
+        Serial.println("Card failed, or not present");
+        // don't do anything more:
+        return;
+      }
+      Serial.println("card initialized.");
+
+
+      // starts with tempFileName as fileName. If it already exists increment the last number 
+      String tempFileName = fileName + "00.csv";
+      int i = 0;
+
+      while (SD.exists(tempFileName)) {
+        i++;
+        if (i < 10) {
+          tempFileName = fileName + "0" + i + ".csv";
+        }
+        else {
+          tempFileName = fileName +  i + ".csv";
+        }
+      }
+
+      curFileName = tempFileName;
+      Serial.println(curFileName);
+      //if (!logFile.open(tempFileName, FILE_WRITE)) {
+      //  Serial.println(F("file.open failed"));
+      //}
+
+      logFile = SD.open(curFileName, FILE_WRITE);
+      //logFile.open(SD, curFileName, O_RDWR);
+      //logFile.open(curFileName, O_RDWR);
+      //logFile.open(tempFileName, FILE_WRITE);
+
+      if (SD.exists(tempFileName)) {
+        Serial.println("new file created");
+      }
+
+      //logFile = SD.open(curFileName);
+
+      writeHeader();
+  #endif
 }
 
 
@@ -849,14 +1121,11 @@ void loop() {
   int long curTime = millis();
 
   #ifdef NRF24
-      // recive Data
-      if (reciveData()) {
-
-      }
-      else {
-        // if there is no input recived -> reset data to default values
-        for (int i = 0; i < int (sizeof(data_recive) / sizeof(data_recive.channel[0])); i++) {
-          data_recive.channel[i] = 128;
+      // receive Data
+      if (!receiveData()) {
+        // if there is no input received -> reset data to default values
+        for (int i = 0; i < int (sizeof(data_receive) / sizeof(data_receive.channel[0])); i++) {
+          data_receive.channel[i] = 128;
         }
       }
 
@@ -875,7 +1144,7 @@ void loop() {
   readHMC5883();
 
   
-  // alloocate recived data to outputs
+  // alloocate received data to outputs
   #ifdef SERVO
       
   #endif
@@ -890,7 +1159,8 @@ void loop() {
   LED_state = !LED_state;  // blink LED
   digitalWrite(LED_PIN, LED_state);
 
-  loopTime = millis() - curTime;
-
   outputDataOverSerial();  // output all Values to Serial monitor (if defined)
+  logData();
+
+  loopTime = millis() - curTime;
 }
