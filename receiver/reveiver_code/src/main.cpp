@@ -135,11 +135,12 @@
 #include <DFRobot_QMC5883.h>
 #include "SdFat.h"
 
+#include "radio.h"
+#include "sensor.h"
 
-#define NRF24
+
 //#define SERVO
 //#define STEPPER
-//#define READ_VOLTAGE
 //#define MPU6050_READ
 //#define BMP280
 //#define HMC5883
@@ -157,7 +158,7 @@
 
 #define DEBUG
 #ifdef DEBUG
-    //#define SERIAL_OUTPUT  // if defined all sensor data will be printed
+    #define SERIAL_OUTPUT  // if defined all sensor data will be printed
 #endif
 
 char LED_PIN = 23;
@@ -165,9 +166,6 @@ bool LED_state = false;
 
 int loopTime;
 
-#ifdef NRF24
-    #include "radio.h"
-#endif
 
 #ifdef SERVO
     struct chServo {
@@ -191,14 +189,6 @@ int loopTime;
       bool valueAsAngle = false;
       bool active = true;
     } chStepper[3];
-#endif
-
-#ifdef READ_VOLTAGE
-    struct chVoltage {
-      float value;
-      char pin;
-      float R1 = 1.00, R2 = 1.00;
-    } chVoltage[4];
 #endif
 
 #ifdef MPU6050_READ
@@ -347,17 +337,6 @@ void updateOutputChannels() {
             chStepper[i].stepper.runSpeed();
           }
         }
-      }
-  #endif
-}
-
-void readVoltage() {
-  #ifdef READ_VOLTAGE
-      for (int i = 0; i < int (sizeof(chVoltage) / sizeof(chVoltage[0])); i++) {
-        int value = analogRead(chVoltage[i].pin);
-
-        // convert the measured value to a voltage. 4098 is because of the 12bit read resolution
-        chVoltage[i].value = value * 3.3 / 4098 / (chVoltage[i].R2 / (chVoltage[i].R1 + chVoltage[i].R2));
       }
   #endif
 }
@@ -656,7 +635,7 @@ void outputDataOverSerial() {
           }
       #endif
 
-      #ifdef READ_VOLTAGE
+      #ifdef VOLTAGE
           for (int i = 0; i < int (sizeof(chVoltage) / sizeof(chVoltage[0])); i++) {
             Serial.print("v: ");
             Serial.print(i);
@@ -782,13 +761,6 @@ void setup() {
 
 
   #ifdef NRF24
-                          //// start radio communication
-                          //if (!radio.begin())
-                          //  criticalError(0);
-                          //radio.openReadingPipe(0, address);
-                          //radio.openWritingPipe(address);
-                          //radio.setPALevel(RF24_PA_MIN);
-                          //radio.startListening();
       if (!NRF_init()) {
         criticalError(0);
       }
@@ -845,20 +817,8 @@ void setup() {
       }
   #endif
 
-  #ifdef READ_VOLTAGE
-      chVoltage[0].pin = 24;
-      chVoltage[1].pin = 25;
-      chVoltage[2].pin = 26;
-      chVoltage[3].pin = 27;
-
-      for (int i = 0; i < int (sizeof(chVoltage) / sizeof(chVoltage[0])); i++) {
-        pinMode(chVoltage[i].pin, INPUT);
-      }
-
-      chVoltage[0].R2 = 1.00;
-      chVoltage[1].R2 = 2.00;
-      chVoltage[2].R2 = 2.00;
-      chVoltage[3].R2 = 7.5;
+  #ifdef VOLTAGE
+      Voltage_init();
   #endif
 
   #ifdef MPU6050_READ
@@ -1081,7 +1041,9 @@ void loop() {
       //NRF_send();
   #endif
 
-  readVoltage();
+  #ifdef VOLTAGE
+    Voltage_read();
+  #endif
 
   #ifdef MPU6050_READ
       if (!(!mpuInterrupt && fifoCount < packetSize))

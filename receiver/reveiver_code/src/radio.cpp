@@ -1,5 +1,10 @@
 #include <Arduino.h>
 #include "radio.h"
+
+#ifdef NRF24
+// ================================================================
+// ===                         NRF24L01                         ===
+// ================================================================
 #include <nRF24L01.h>
 #include <RF24.h>
 
@@ -11,9 +16,9 @@ Data_Package_receive data_receive;
 Data_Package_send data_send;
 
 long receiveTime;  // time the NRF24 took to receive data
-const int maxReceiveTime = 250;  // max time the NRF24 will try reciving data
+const int maxReceiveTime = 250;  // max time the NRF24 will try receiving data
 
-// return true if succesfull
+// return true if successful
 bool NRF_init() {
     // start radio communication
     Serial.println("Initializing NRF module...");
@@ -27,10 +32,11 @@ bool NRF_init() {
     radio.setPALevel(RF24_PA_MIN);
     radio.startListening();
 
-    Serial.print("NRF Initialization complete");
+    Serial.print("NRF Initialization successful");
     return true;
 }
 
+// return true if successful
 bool NRF_receive() {
     bool received = false;
 
@@ -38,7 +44,7 @@ bool NRF_receive() {
 
     long time = millis();
 
-    // try reciving till something is received or a time of maxReceiveTime is reached
+    // try receiving till something is received or a time of maxReceiveTime is reached
     while(!received) {
     receiveTime = millis() - time;
 
@@ -55,6 +61,7 @@ bool NRF_receive() {
   return received;
 }
 
+// return true if successful
 bool NRF_send() {
     radio.stopListening();
 
@@ -62,8 +69,10 @@ bool NRF_send() {
     return true;
 }
 
+// if nothing is received, the channels should be set to a neutral value
 void NRF_failsave() {
     for (int i = 0; i < int (sizeof(data_receive) / sizeof(data_receive.channel[0])); i++) {
       data_receive.channel[i] = 128;
     }
 }
+#endif
