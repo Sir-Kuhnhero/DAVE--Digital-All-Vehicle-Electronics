@@ -129,7 +129,6 @@
 #include <AccelStepper.h>
 #include <I2Cdev.h>
 #include "Wire.h"
-//#include <Adafruit_BMP280.h>
 #include <DFRobot_QMC5883.h>
 #include "SdFat.h"
 
@@ -187,16 +186,6 @@ int loopTime;
       bool active = true;
     } chStepper[3];
 #endif
-
-/*
-#ifdef BMP280
-    Adafruit_BMP280 bmp; // use I2C interface
-    Adafruit_Sensor *bmp_temp = bmp.getTemperatureSensor();
-    Adafruit_Sensor *bmp_pressure = bmp.getPressureSensor();
-
-    sensors_event_t temp_event, pressure_event;
-#endif
-*/
 
 #ifdef HMC5883
     DFRobot_QMC5883 compass(&Wire, /*I2C addr*/0x0D);
@@ -275,13 +264,6 @@ void updateOutputChannels() {
           }
         }
       }
-  #endif
-}
-
-void readBMP280() {
-  #ifdef BMP280
-    bmp_temp->getEvent(&temp_event);
-    bmp_pressure->getEvent(&pressure_event);
   #endif
 }
 
@@ -697,31 +679,7 @@ void setup() {
   #endif
 
   #ifdef BMP280
-      Serial.println(F("BMP280 Sensor event test"));
-
-      unsigned status;
-      status = bmp.begin(BMP280_ADDRESS_ALT, 0x60);
-      //status = bmp.begin();
-      if (!status) {
-        Serial.println(F("Could not find a valid BMP280 sensor, check wiring or "
-                          "try a different address!"));
-        Serial.print("SensorID was: 0x"); Serial.println(bmp.sensorID(),16);
-        Serial.print("        ID of 0xFF probably means a bad address, a BMP 180 or BMP 085\n");
-        Serial.print("   ID of 0x56-0x58 represents a BMP 280,\n");
-        Serial.print("        ID of 0x60 represents a BME 280.\n");
-        Serial.print("        ID of 0x61 represents a BME 680.\n");
-
-        criticalError(2);
-      }
-
-      /* Default settings from datasheet. */
-      bmp.setSampling(Adafruit_BMP280::MODE_NORMAL,     /* Operating Mode. */
-                      Adafruit_BMP280::SAMPLING_X2,     /* Temp. oversampling */
-                      Adafruit_BMP280::SAMPLING_X16,    /* Pressure oversampling */
-                      Adafruit_BMP280::FILTER_X16,      /* Filtering. */
-                      Adafruit_BMP280::STANDBY_MS_500); /* Standby time. */
-
-      bmp_temp->printSensorDetails();
+      BMP_init();
   #endif
 
   #ifdef HMC5883
@@ -861,7 +819,10 @@ void loop() {
       IMU_read();
   #endif
 
-  readBMP280();
+  #ifdef BMP280
+      BMP_read();
+  #endif
+
   readHMC5883();
 
   

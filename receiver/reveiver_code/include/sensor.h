@@ -67,10 +67,9 @@
 
 #ifdef BMP280
     #include <Adafruit_BMP280.h>
-    
-    Adafruit_BMP280 bmp; // use I2C interface
-    Adafruit_Sensor *bmp_temp = bmp.getTemperatureSensor();
-    Adafruit_Sensor *bmp_pressure = bmp.getPressureSensor();
 
-    sensors_event_t temp_event, pressure_event;
+    extern sensors_event_t temp_event, pressure_event;
+
+    bool BMP_init();
+    bool BMP_read();
 #endif
