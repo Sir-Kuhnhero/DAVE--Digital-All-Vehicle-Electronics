@@ -16,6 +16,7 @@ Data_Package_receive data_receive;
 Data_Package_send data_send;
 
 long receiveTime;  // time the NRF24 took to receive data
+bool receivePass;  // true if NRF24 is able to receive data
 const int maxReceiveTime = 250;  // max time the NRF24 will try receiving data
 
 // return true if successful
@@ -23,7 +24,7 @@ bool NRF_init() {
     // start radio communication
     Serial.println("Initializing NRF module...");
     if (!radio.begin()) {
-        Serial.print("NRF Initialization failed");
+        Serial.print("NRF initialization failed");
         return false;
     }
     
@@ -32,33 +33,38 @@ bool NRF_init() {
     radio.setPALevel(RF24_PA_MIN);
     radio.startListening();
 
-    Serial.print("NRF Initialization successful");
+    Serial.println("NRF initialization successful");
+
+    Serial.println();
+    Serial.println("================================================================================");
+    Serial.println();
+
     return true;
 }
 
 // return true if successful
 bool NRF_receive() {
-    bool received = false;
+    receivePass = false;
 
     radio.startListening();
 
     long time = millis();
 
     // try receiving till something is received or a time of maxReceiveTime is reached
-    while(!received) {
+    while(!receivePass) {
     receiveTime = millis() - time;
 
     if (radio.available()) {
       radio.read(&data_receive, sizeof(data_receive));
 
-        received = true;
+        receivePass = true;
       }
       else if (receiveTime >= maxReceiveTime) {
         return false;
       }
     }
 
-  return received;
+  return receivePass;
 }
 
 // return true if successful

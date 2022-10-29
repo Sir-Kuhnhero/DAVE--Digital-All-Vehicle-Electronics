@@ -1,3 +1,4 @@
+#pragma region License
 // 
     // Updates should (hopefully) always be available at https://github.com/Sir-Kuhnhero/DAVE--Digital-All-Vehicle-Electronics
     //
@@ -122,106 +123,22 @@
     * @n      Formula: (deg + (min / 60.0)) / (180 / PI);
     */
 #pragma endregion
+#pragma endregion
+
 
 #include <Arduino.h>
 #include <SPI.h>
-#include <Servo.h>
-#include <AccelStepper.h>
 #include <I2Cdev.h>
 #include "Wire.h"
 
-//#include "radio.h"
-//#include "sensor.h"
-//#include "sd.h"
 #include "header.h"
 
-
-//#define SERVO
-//#define STEPPER
-#ifdef SD_Card
-    #define dataLogging
-    #ifdef dataLogging
-        #define NRF24_LOG
-        //#define READ_VOLTAGE_LOG
-        //#define IMU_LOG
-        //#define BMP280_LOG
-        //#define HMC5883_LOG
-    #endif
-#endif
-
-#define DEBUG
-#ifdef DEBUG
-    #define SERIAL_OUTPUT  // if defined all sensor data will be printed
-#endif
 
 char LED_PIN = 23;
 bool LED_state = false;
 
 int loopTime;
 
-
-#ifdef SERVO
-    struct chServo {
-      Servo servo;
-      int value = 128;
-      int minValue = 0;
-      float valueScaler = 1;
-      char pin;
-      bool valueAsAngle = false;
-    } chServo[3];
-#endif
-
-#ifdef STEPPER
-    struct chStepper {
-      AccelStepper stepper;
-      int value = 128;
-      int minValue = 0;
-      float valueScaler = 4;
-      float maxSpeed, acceleration;
-      int stepPin, dirPin, enablePin;
-      bool valueAsAngle = false;
-      bool active = true;
-    } chStepper[3];
-#endif
-
-
-void updateOutputChannels() {
-  #ifdef SERVO
-      // Servo / ESC
-      for (int i = 0; i < int (sizeof(chServo) / sizeof(chServo[0])); i++) {
-        int value = int (chServo[i].value * chServo[i].valueScaler) + chServo[i].minValue;
-
-        if (!chServo[i].valueAsAngle) {
-          value = map(value, 0, 255, 0, 180);
-        }
-
-        chServo[i].servo.write(value);
-      }
-  #endif
-
-  #ifdef STEPPER
-      // Stepper
-      for (int i = 0; i < int (sizeof(chStepper) / sizeof(chStepper[0])); i++) {
-        if (!chStepper[i].active) {
-          digitalWrite(chStepper[i].enablePin, HIGH);
-        }
-        else {
-          digitalWrite(chStepper[i].enablePin, LOW);
-
-          int value = int (chStepper[i].value * chStepper[i].valueScaler) + chStepper[i].minValue;
-
-          if (chStepper[i].valueAsAngle) {
-            chStepper[i].stepper.moveTo(value);
-            chStepper[i].stepper.run();
-          }
-          else {
-            chStepper[i].stepper.setSpeed(value - int (128 * chStepper[i].valueScaler));
-            chStepper[i].stepper.runSpeed();
-          }
-        }
-      }
-  #endif
-}
 
 void criticalError(int errorCode) {
   // this funktion will keep on looping until an input to the Serial line restarts the Teensy
@@ -246,136 +163,6 @@ void criticalError(int errorCode) {
   criticalError(errorCode);
 }
 
-void outputDataOverSerial() {
-  #ifdef SERIAL_OUTPUT
-      #pragma region displayLoopTime
-          Serial.print("loopTime: ");
-          Serial.print(loopTime);
-
-          if (loopTime < 10)
-            Serial.print("   ");
-          else if (loopTime < 100)
-            Serial.print("  ");
-          Serial.print(" || ");
-      #pragma endregion
-
-      #ifdef NRF24
-          Serial.print("reviveTime: ");
-          Serial.print(receiveTime);
-          Serial.print(" || ");
-
-          for (int i = 0; i < int (sizeof(data_receive.channel) / sizeof(data_receive.channel[0])); i++) {
-            Serial.print("ch: ");
-            Serial.print(i);
-            Serial.print(" - ");
-            Serial.print(data_receive.channel[i]);
-
-            if (data_receive.channel[i] < 10)
-              Serial.print("  ");
-            else if (data_receive.channel[i] < 100)
-              Serial.print(" ");
-            Serial.print(" || ");
-          }
-      #endif
-
-      #ifdef VOLTAGE
-          for (int i = 0; i < int (sizeof(chVoltage) / sizeof(chVoltage[0])); i++) {
-            Serial.print("v: ");
-            Serial.print(i);
-            Serial.print(" - ");
-            Serial.print(chVoltage[i].value);
-            Serial.print(" || ");
-          }
-      #endif
-
-      #ifdef IMU
-          #ifdef OUTPUT_READABLE_QUATERNION
-              // display quaternion values in easy matrix form: w x y z
-              Serial.print("quat: ");
-              Serial.print(q.w);
-              Serial.print(", ");
-              Serial.print(q.x);
-              Serial.print(", ");
-              Serial.print(q.y);
-              Serial.print(", ");
-              Serial.print(q.z);
-              Serial.print(" || ");
-          #endif
-
-          #ifdef OUTPUT_READABLE_EULER
-              // display Euler angles in degrees
-              Serial.print("euler: ");
-              Serial.print(euler[0] * 180/M_PI);
-              Serial.print(", ");
-              Serial.print(euler[1] * 180/M_PI);
-              Serial.print(", ");
-              Serial.print(euler[2] * 180/M_PI);
-              Serial.print(" || ");
-          #endif
-
-          #ifdef OUTPUT_READABLE_YAWPITCHROLL
-              // display Euler angles in degrees
-              Serial.print("ypr: ");
-              Serial.print(ypr[0] * 180/M_PI);
-              Serial.print(", ");
-              Serial.print(ypr[1] * 180/M_PI);
-              Serial.print(", ");
-              Serial.print(ypr[2] * 180/M_PI);
-              Serial.print(" || ");
-          #endif
-
-          #ifdef OUTPUT_READABLE_REALACCEL
-              // display real acceleration, adjusted to remove gravity
-              Serial.print("areal: ");
-              Serial.print(aaReal.x);
-              Serial.print(", ");
-              Serial.print(aaReal.y);
-              Serial.print(", ");
-              Serial.print(aaReal.z);
-              Serial.print(" || ");
-          #endif
-
-          #ifdef OUTPUT_READABLE_WORLDACCEL
-              // display initial world-frame acceleration, adjusted to remove gravity
-              // and rotated based on known orientation from quaternion
-              Serial.print("aworld: ");
-              Serial.print(aaWorld.x);
-              Serial.print(", ");
-              Serial.print(aaWorld.y);
-              Serial.print(", ");
-              Serial.println(aaWorld.z);
-              Serial.print(" || ");
-          #endif
-      #endif
-
-      #ifdef BMP280
-          Serial.print(F("Temperature = "));
-          Serial.print(temp_event.temperature);
-          Serial.print(" *C");
-          Serial.print(" || ");
-
-          Serial.print(F("Pressure = "));
-          Serial.print(pressure_event.pressure);
-          Serial.print(" hPa");
-          Serial.print(" || ");
-      #endif
-
-      #ifdef HMC5883
-          Serial.print("X:");
-          Serial.print(mag.XAxis);
-          Serial.print(" Y:");
-          Serial.print(mag.YAxis);
-          Serial.print(" Z:");
-          Serial.print(mag.ZAxis);
-          Serial.print(" | ");
-          Serial.print("Degress = ");
-          Serial.print(mag.HeadingDegress);
-          Serial.print(" || ");
-      #endif
-
-      Serial.println();
-  #endif
-}
 
 // ================================================================
 // ===                      INITIAL SETUP                       ===
@@ -388,18 +175,7 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
   
   #ifdef DEBUG
-      // wait for USB connection
-      while (!Serial) {
-            delay(100);
-      }
-
-      Serial.println("press any button to start");
-
-      // wait for serial input
-      while (!Serial.available()) {
-            delay(100);
-      }
-      Serial.clear();
+      Debug_WaitForSerial();
   #endif
 
 
@@ -410,54 +186,11 @@ void setup() {
   #endif
 
   #ifdef SERVO
-      // configure channels
-      chServo[0].pin = 3;
-      chServo[1].pin = 4;
-      chServo[2].pin = 5;
-      chServo[3].pin = 6;
-      chServo[4].pin = 9;
-      chServo[5].pin = 10;
-      chServo[6].pin = 14;
-      chServo[7].pin = 15;
-      chServo[8].pin = 33;
-      chServo[9].pin = 36;
-      chServo[10].pin = 37;
-
-      for (int i = 0; i < int (sizeof(chServo) / sizeof(chServo[0])); i++) {
-        chServo[i].servo.attach(chServo[i].pin, 1000, 2000);
-      }
+      Servo_init();
   #endif
 
   #ifdef STEPPER
-      chStepper[0].stepPin = 20;
-      chStepper[0].dirPin = 21;
-      chStepper[0].enablePin = 22;
-      chStepper[1].stepPin = 30;
-      chStepper[1].dirPin = 31;
-      chStepper[1].enablePin = 32;
-      chStepper[2].stepPin = 34;
-      chStepper[2].dirPin = 35;
-      chStepper[2].enablePin = 38;
-      chStepper[3].stepPin = 39;
-      chStepper[3].dirPin = 40;
-      chStepper[3].enablePin = 41;
-
-      chStepper[0].maxSpeed = 2000.00;
-      chStepper[1].maxSpeed = 2000.00;
-      chStepper[2].maxSpeed = 2000.00;
-      chStepper[3].maxSpeed = 2000.00;
-      chStepper[0].acceleration = 75.00;
-      chStepper[1].acceleration = 75.00;
-      chStepper[2].acceleration = 75.00;
-      chStepper[3].acceleration = 75.00;
-
-      for (int i = 0; i < int (sizeof(chStepper) / ( sizeof(chStepper[0]))); i++) {
-        pinMode(chStepper[i].enablePin, OUTPUT);
-        AccelStepper stepperTemp(1, chStepper[i].stepPin, chStepper[i].dirPin);
-        stepperTemp.setMaxSpeed(chStepper[i].maxSpeed);
-        stepperTemp.setAcceleration(chStepper[i].acceleration);
-        chStepper[i].stepper = stepperTemp;
-      }
+      Stepper_init();
   #endif
 
   #ifdef VOLTAGE
@@ -494,10 +227,7 @@ void setup() {
   #endif
 
   #ifdef DEBUG
-      for (int i = 0; i < 10; i++) {
-        Serial.print(".");
-        delay(500);
-      }
+      Debug_delay();
   #endif
 }
 
@@ -535,24 +265,34 @@ void loop() {
       HMC_read();
   #endif
 
+
+
   
-  // alloocate received data to outputs
+  // alloocate received data to outputs and update them
   #ifdef SERVO
-      
+      Servo_update();
   #endif
 
   #ifdef STEPPER
-      
+      Stepper_update();
   #endif
 
   
-  updateOutputChannels();
-  
+
+
+  #ifdef DEBUG
+      Debug_Serial_out();
+  #endif
+
+  #ifdef log_ENABLE
+      SD_write_log();
+  #endif
+
+
+
+
   LED_state = !LED_state;  // blink LED
   digitalWrite(LED_PIN, LED_state);
-
-  outputDataOverSerial();  // output all Values to Serial monitor (if defined)
-  SD_write_log();
 
   loopTime = millis() - curTime;
 }

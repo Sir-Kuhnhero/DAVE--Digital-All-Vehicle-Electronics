@@ -73,6 +73,10 @@ bool SD_init() {
         }
     #endif
 
+    Serial.println();
+    Serial.println("================================================================================");
+    Serial.println();
+
     return true;
 }
 
@@ -85,19 +89,19 @@ bool SD_write_log() {
             stringToWrite = stringToWrite + ";" + loopTime;
         #pragma endregion
 
-        #ifdef NRF24_LOG
+        #ifdef NRF_log
             // currently only receiveTime and conPass is being loged
             stringToWrite = stringToWrite + ";" + receiveTime;
-            stringToWrite = stringToWrite + ";" + NRF_receive;
+            stringToWrite = stringToWrite + ";" + receivePass;
         #endif
 
-        #ifdef READ_VOLTAGE_LOG
+        #ifdef VOLTAGE_log
             for (int i = 0; i < int (sizeof(chVoltage) / sizeof(chVoltage[0])); i++) {
                 stringToWrite = stringToWrite + ";" + chVoltage[i].value;
             }
         #endif
 
-        #ifdef IMU_LOG
+        #ifdef IMU_log
             #ifdef OUTPUT_READABLE_QUATERNION
                 // log quaternion values in easy matrix form: w x y z
                 stringToWrite = stringToWrite + ";" + q.w;
@@ -136,12 +140,12 @@ bool SD_write_log() {
             #endif
         #endif
 
-        #ifdef BMP280_LOG
+        #ifdef BMP_log
             stringToWrite = stringToWrite + ";" + temp_event.temperature;
             stringToWrite = stringToWrite + ";" + pressure_event.pressure;
         #endif
 
-        #ifdef HMC5883_LOG
+        #ifdef HMC_log
             stringToWrite = stringToWrite + ";" + mag.XAxis;
             stringToWrite = stringToWrite + ";" + mag.YAxis;
             stringToWrite = stringToWrite + ";" + mag.ZAxis;
@@ -163,18 +167,18 @@ bool SD_write_logHeader() {
 
         stringToWrite = stringToWrite + ";" + "loopTime";
 
-        #ifdef NRF24_LOG
+        #ifdef NRF_log
             stringToWrite = stringToWrite + ";" + "receiveTime";
             stringToWrite = stringToWrite + ";" + "NRF_receive";
         #endif
 
-        #ifdef READ_VOLTAGE_LOG
+        #ifdef VOLTAGE_log
             for (int i = 0; i < int (sizeof(chVoltage) / sizeof(chVoltage[0])); i++) {
                 stringToWrite = stringToWrite + ";" + "v: " + i;
             }
         #endif
 
-        #ifdef IMU_LOG
+        #ifdef IMU_log
             #ifdef OUTPUT_READABLE_QUATERNION
                 // display quaternion values in easy matrix form: w x y z
                 stringToWrite = stringToWrite + ";" + "quat: w";
@@ -213,12 +217,12 @@ bool SD_write_logHeader() {
             #endif
         #endif
 
-        #ifdef BMP280_LOG
+        #ifdef BMP_log
             stringToWrite = stringToWrite + ";" + "Temperature (BMP, C*)";
             stringToWrite = stringToWrite + ";" + "Pressure (hPa)";
         #endif
 
-        #ifdef HMC5883_LOG
+        #ifdef HMC_log
             stringToWrite = stringToWrite + ";" + "mag.XAxis";
             stringToWrite = stringToWrite + ";" + "mag.YAxis";
             stringToWrite = stringToWrite + ";" + "mag.ZAxis";

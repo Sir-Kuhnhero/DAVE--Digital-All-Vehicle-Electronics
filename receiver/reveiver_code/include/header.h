@@ -5,6 +5,7 @@
 // ================================================================
 // ===                           main                           ===
 // ================================================================
+
 extern int loopTime;
 
 
@@ -26,6 +27,7 @@ extern int loopTime;
     extern Data_Package_send data_send;
     
     extern long receiveTime;  // time the NRF24 took to receive data
+    extern bool receivePass;  // true if NRF24 is able to receive data
     
     bool NRF_init();
     bool NRF_receive();
@@ -125,7 +127,40 @@ extern int loopTime;
 // ===                            SD                            ===
 // ================================================================
 #define SD_Card
-#define log_ENABLE
+//#define log_ENABLE
+
+#define NRF_log
+#define VOLTAGE_log
+#define IMU_log
+#define BMP_log
+#define HMC_log
+
+#pragma region preventError
+    // if loging is not enabled no data can be logged
+    #ifndef log_ENABLE
+        #undef NRF_log
+        #undef VOLTAGE_log
+        #undef IMU_log
+        #undef BMP_log
+        #undef HMC_log
+    #endif
+    // if a module is not implemented it also can not be logged
+    #ifndef NRF24
+        #undef NRF_log
+    #endif
+    #ifndef VOLTAGE
+        #undef VOLTAGE_log
+    #endif
+    #ifndef IMU
+        #undef IMU_log
+    #endif
+    #ifndef BMP280
+        #undef BMP_log
+    #endif
+    #ifndef HMC5883
+        #undef HMC_log
+    #endif
+#pragma endregion
 
 #ifdef SD_Card
     #include "SdFat.h"
@@ -138,4 +173,94 @@ extern int loopTime;
     bool SD_init();
     bool SD_write_log();
     bool SD_write_logHeader();
+#endif
+
+
+// ================================================================
+// ===                          output                          ===
+// ================================================================
+#define SERVO
+#define STEPPER
+
+#ifdef SERVO
+    #include <Servo.h>
+
+    struct ServoOut {
+        Servo servo;
+        int value = 128;
+        int minValue = 0;
+        float valueScaler = 1;
+        char pin;
+        bool valueAsAngle = false;
+    };
+
+    extern ServoOut chServo[11];
+
+    bool Servo_init();
+    bool Servo_update();
+#endif
+
+#ifdef STEPPER
+    #include <AccelStepper.h>
+    
+    struct StepperOut {
+        AccelStepper stepper;
+        int value = 128;
+        int minValue = 0;
+        float valueScaler = 4;
+        float maxSpeed, acceleration;
+        int stepPin, dirPin, enablePin;
+        bool valueAsAngle = false;
+        bool active = true;
+    };
+
+    extern StepperOut chStepper[3];
+
+    bool Stepper_init();
+    bool Stepper_update();
+#endif
+
+
+// ================================================================
+// ===                          debug                           ===
+// ================================================================
+#define DEBUG
+
+#define NRF_SERIAL_out
+#define VOLTAGE_SERIAL_out
+#define IMU_SERIAL_out
+#define BMP_SERIAL_out
+#define HMC_SERIAL_out
+
+#pragma region preventError
+    // if DEBUG is not enabled no data should be printed over the serial monitor
+    #ifndef DEBUG
+        #undef NRF_SERIAL_out
+        #undef VOLTAGE_SERIAL_out
+        #undef IMU_SERIAL_out
+        #undef BMP_SERIAL_out
+        #undef HMC_SERIAL_out
+    #endif
+    // if a module is not implemented it also can not be printed over the serial monitor
+    #ifndef NRF24
+        #undef NRF_SERIAL_out
+    #endif
+    #ifndef VOLTAGE
+        #undef VOLTAGE_SERIAL_out
+    #endif
+    #ifndef IMU
+        #undef IMU_SERIAL_out
+    #endif
+    #ifndef BMP280
+        #undef BMP_SERIAL_out
+    #endif
+    #ifndef HMC5883
+        #undef HMC_SERIAL_out
+    #endif
+#pragma endregion
+
+#ifdef DEBUG
+    void Debug_Serial_out();
+    void Debug_WaitForSerial();
+    void Debug_delay();
 #endif
