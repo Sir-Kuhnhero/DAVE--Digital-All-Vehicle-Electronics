@@ -12,7 +12,7 @@ extern int loopTime;
 // ================================================================
 // ===                          radio                           ===
 // ================================================================
-//#define NRF24
+#define NRF24
 
 #ifdef NRF24
     struct Data_Package_receive {
@@ -39,10 +39,10 @@ extern int loopTime;
 // ================================================================
 // ===                          sensor                          ===
 // ================================================================
-#define VOLTAGE
-#define IMU
-#define BMP280
-#define HMC5883
+// #define VOLTAGE
+// #define IMU
+// #define BMP280
+// #define HMC5883
 
 #ifdef VOLTAGE
     struct Voltage {
@@ -126,8 +126,8 @@ extern int loopTime;
 // ================================================================
 // ===                            SD                            ===
 // ================================================================
-#define SD_Card
-//#define log_ENABLE
+// #define SD_Card
+// #define log_ENABLE
 
 #define NRF_log
 #define VOLTAGE_log
@@ -224,7 +224,7 @@ extern int loopTime;
 // ================================================================
 // ===                          debug                           ===
 // ================================================================
-#define DEBUG
+// #define DEBUG
 
 #define NRF_SERIAL_out
 #define VOLTAGE_SERIAL_out
