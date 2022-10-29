@@ -4,6 +4,7 @@
 #define VOLTAGE
 #define IMU
 #define BMP280
+#define HMC5883
 
 #ifdef VOLTAGE
     struct Voltage {
@@ -14,8 +15,8 @@
 
     extern Voltage chVoltage[4];
 
-    void Voltage_read();
-    void Voltage_init();
+    bool Voltage_read();
+    bool Voltage_init();
 #endif
 
 #ifdef IMU
@@ -72,4 +73,13 @@
 
     bool BMP_init();
     bool BMP_read();
+#endif
+
+#ifdef HMC5883
+    #include <DFRobot_QMC5883.h>
+
+    extern sVector_t mag;
+
+    bool HMC_init();
+    bool HMC_read();
 #endif

@@ -7,7 +7,7 @@
 // ================================================================
 Voltage chVoltage[4];
 
-void Voltage_init() {
+bool Voltage_init() {
     chVoltage[0].pin = 24;
     chVoltage[1].pin = 25;
     chVoltage[2].pin = 26;
@@ -21,9 +21,11 @@ void Voltage_init() {
     chVoltage[1].R2 = 2.00;
     chVoltage[2].R2 = 2.00;
     chVoltage[3].R2 = 7.5;
+
+    return true;
 }
 
-void Voltage_read()
+bool Voltage_read()
 {
     for (int i = 0; i < int (sizeof(chVoltage) / sizeof(chVoltage[0])); i++) {
         int value = analogRead(chVoltage[i].pin);
@@ -31,6 +33,8 @@ void Voltage_read()
         // convert the measured value to a voltage. 4098 is because of the 12bit read resolution
         chVoltage[i].value = value * 3.3 / 4098 / (chVoltage[i].R2 / (chVoltage[i].R1 + chVoltage[i].R2));
     }
+
+    return true;
 }
 #endif
 
@@ -254,4 +258,88 @@ bool BMP_read() {
     return true;
 }
 
+#endif
+
+#ifdef HMC5883
+// ================================================================
+// ===                          HMC5883                         ===
+// ================================================================
+#include <DFRobot_QMC5883.h>
+DFRobot_QMC5883 compass(&Wire, /*I2C addr*/0x0D);
+/*
+    Depending on where you buy your "HMC5883" module you can either get a genuin HMC5883L chip of a cheaper QMC5883 chip.
+    They each need a different I2C address. These are 0x0D (QMC5883) and 0x1E (HMC5883L). 
+    Note that i didn't test the address for a genuin HMC5883L because I don't have one.
+*/
+
+sVector_t mag;
+
+bool HMC_init() {
+    if (!compass.begin()) {
+        Serial.println("Could not find a valid 5883 sensor, check wiring!");
+        return false;
+    }
+
+    if(compass.isHMC())
+    {
+        Serial.println("Initialize HMC5883");
+
+        //Set/get the compass signal gain range, default to be 1.3 Ga
+        // compass.setRange(HMC5883L_RANGE_1_3GA);
+        // Serial.print("compass range is:");
+        // Serial.println(compass.getRange());
+
+        //Set/get measurement mode
+        // compass.setMeasurementMode(HMC5883L_CONTINOUS);
+        // Serial.print("compass measurement mode is:");
+        // Serial.println(compass.getMeasurementMode());
+
+        //Set/get the data collection frequency of the sensor
+        // compass.setDataRate(HMC5883L_DATARATE_15HZ);
+        // Serial.print("compass data rate is:");
+        // Serial.println(compass.getDataRate());
+
+        //Get/get sensor status
+        // compass.setSamples(HMC5883L_SAMPLES_8);
+        // Serial.print("compass samples is:");
+        // Serial.println(compass.getSamples());
+    }
+    else if(compass.isQMC()) {
+        Serial.println("Initialize QMC5883");
+        // compass.setRange(QMC5883_RANGE_2GA);
+        // Serial.print("compass range is:");
+        // Serial.println(compass.getRange());
+
+        // compass.setMeasurementMode(QMC5883_CONTINOUS);
+        // Serial.print("compass measurement mode is:");
+        // Serial.println(compass.getMeasurementMode());
+
+        // compass.setDataRate(QMC5883_DATARATE_50HZ);
+        // Serial.print("compass data rate is:");
+        // Serial.println(compass.getDataRate());
+
+        // compass.setSamples(QMC5883_SAMPLES_8);
+        // Serial.print("compass samples is:");
+        // Serial.println(compass.getSamples());
+    }
+    else if(compass.isVCM()) {
+        Serial.println("Initialize VCM5883L");
+        // compass.setMeasurementMode(VCM5883L_CONTINOUS);
+        // Serial.print("compass measurement mode is:");
+        // Serial.println(compass.getMeasurementMode());
+
+        // compass.setDataRate(VCM5883L_DATARATE_200HZ);
+        // Serial.print("compass data rate is:");
+        // Serial.println(compass.getDataRate());
+    }
+
+    return true;
+}
+
+bool HMC_read() {
+    float declinationAngle = (4.0 + (26.0 / 60.0)) / (180 / PI);
+    compass.setDeclinationAngle(declinationAngle);
+    mag = compass.readRaw();
+    compass.getHeadingDegrees();
+}
 #endif
