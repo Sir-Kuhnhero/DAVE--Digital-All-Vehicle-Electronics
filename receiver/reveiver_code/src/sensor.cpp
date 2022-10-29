@@ -5,6 +5,9 @@
 // ================================================================
 // ===                         Voltage                          ===
 // ================================================================
+
+
+
 Voltage chVoltage[4];
 
 bool Voltage_init() {
@@ -265,6 +268,9 @@ bool BMP_read() {
 // ===                          HMC5883                         ===
 // ================================================================
 #include <DFRobot_QMC5883.h>
+
+
+
 DFRobot_QMC5883 compass(&Wire, /*I2C addr*/0x0D);
 /*
     Depending on where you buy your "HMC5883" module you can either get a genuin HMC5883L chip of a cheaper QMC5883 chip.

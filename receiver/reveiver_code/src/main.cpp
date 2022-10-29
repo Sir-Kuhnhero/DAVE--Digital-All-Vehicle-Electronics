@@ -129,10 +129,11 @@
 #include <AccelStepper.h>
 #include <I2Cdev.h>
 #include "Wire.h"
-#include "SdFat.h"
+//#include "SdFat.h"
 
 #include "radio.h"
 #include "sensor.h"
+#include "sd.h"
 
 
 //#define SERVO
@@ -184,7 +185,7 @@ int loopTime;
     } chStepper[3];
 #endif
 
-#ifdef SD_Card
+#ifndef SD_Card
     // SDCARD_SS_PIN is defined for the built-in SD on some boards.
     const uint8_t SD_CS_PIN = SS;
     //const uint8_t SD_CS_PIN = SDCARD_SS_PIN;
@@ -254,7 +255,7 @@ void updateOutputChannels() {
 }
 
 bool writeHeader() {
-  #ifdef dataLogging
+  #ifndef dataLogging
       String stringToWrite = "entry";
 
       #pragma region displayLoopTime
@@ -333,7 +334,7 @@ bool writeHeader() {
 }
 
 bool logData() {
-  #ifdef dataLogging
+  #ifndef dataLogging
       String stringToWrite = sdEntry;
       sdEntry++;
 
@@ -676,7 +677,7 @@ void setup() {
       }
   #endif
 
-  #ifdef SD_Card
+  #ifndef SD_Card
       Serial.print("Initializing SD card...");
   
       // see if the card is present and can be initialized:
@@ -721,6 +722,12 @@ void setup() {
 
       writeHeader();
   #endif
+  if (!SD_init()) {
+    criticalError(5);
+  }
+  if (!SD_write_logHeader()) {
+    criticalError(6);
+  }
 
   delay(10000);
 }
@@ -776,7 +783,7 @@ void loop() {
   digitalWrite(LED_PIN, LED_state);
 
   outputDataOverSerial();  // output all Values to Serial monitor (if defined)
-  logData();
+  SD_write_log();
 
   loopTime = millis() - curTime;
 }
