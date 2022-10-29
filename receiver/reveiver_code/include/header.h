@@ -1,6 +1,42 @@
 #include <Arduino.h>
 
-// initialize data shared between .cpp files
+// define data shared between .cpp files
+
+// ================================================================
+// ===                           main                           ===
+// ================================================================
+extern int loopTime;
+
+
+// ================================================================
+// ===                          radio                           ===
+// ================================================================
+//#define NRF24
+
+#ifdef NRF24
+    struct Data_Package_receive {
+      byte channel[6];
+    };
+    
+    struct Data_Package_send {
+      byte x = 100;
+    };
+    
+    extern Data_Package_receive data_receive;
+    extern Data_Package_send data_send;
+    
+    extern long receiveTime;  // time the NRF24 took to receive data
+    
+    bool NRF_init();
+    bool NRF_receive();
+    bool NRF_send();
+    void NRF_failsave();
+#endif
+
+
+// ================================================================
+// ===                          sensor                          ===
+// ================================================================
 #define VOLTAGE
 #define IMU
 #define BMP280
@@ -82,4 +118,24 @@
 
     bool HMC_init();
     bool HMC_read();
+#endif
+
+
+// ================================================================
+// ===                            SD                            ===
+// ================================================================
+#define SD_Card
+#define log_ENABLE
+
+#ifdef SD_Card
+    #include "SdFat.h"
+
+    extern SdFat SD;
+    extern FsFile logFile;
+
+    extern String curFileName;
+
+    bool SD_init();
+    bool SD_write_log();
+    bool SD_write_logHeader();
 #endif

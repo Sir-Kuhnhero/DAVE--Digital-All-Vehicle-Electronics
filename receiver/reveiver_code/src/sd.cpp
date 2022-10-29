@@ -1,6 +1,5 @@
 #include <Arduino.h>
-#include "sd.h"
-#include "main.h"
+#include "header.h"
 
 
 #ifdef SD_Card
@@ -150,7 +149,7 @@ bool SD_write_log() {
         #endif
 
         logFile = SD.open(curFileName, FILE_WRITE);
-        Serial.println(stringToWrite);
+        //Serial.println(stringToWrite);
         logFile.println(stringToWrite);
         logFile.close();
     #endif
@@ -227,7 +226,7 @@ bool SD_write_logHeader() {
         #endif
 
         logFile = SD.open(curFileName, FILE_WRITE);
-        Serial.println(stringToWrite);
+        //Serial.println(stringToWrite);
         logFile.println(stringToWrite);
         logFile.close();
     #endif
