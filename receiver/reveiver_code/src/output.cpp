@@ -58,7 +58,7 @@ bool Servo_update() {
 
 
 
-StepperOut chStepper[3];
+StepperOut chStepper[4];
 
 bool Stepper_init() {
     chStepper[0].stepPin = 20;

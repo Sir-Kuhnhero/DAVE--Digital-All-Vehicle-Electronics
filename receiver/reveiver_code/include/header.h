@@ -214,7 +214,7 @@ extern int loopTime;
         bool active = true;
     };
 
-    extern StepperOut chStepper[3];
+    extern StepperOut chStepper[4];
 
     bool Stepper_init();
     bool Stepper_update();
