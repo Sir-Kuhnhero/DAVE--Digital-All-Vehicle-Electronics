@@ -41,6 +41,8 @@
 #include <nRF24L01.h>
 #include <RF24.h>
 
+#define DEBUG
+
 RF24 radio(7, 8);  // CE, CSN
 
 const byte address[6] = "00001";
@@ -61,12 +63,12 @@ struct Data_Package_recive {
   byte x;
 } data_recive;
 
-void sendData() {
+void NRF_send() {
   radio.stopListening();
   radio.write(&data_send, sizeof(data_send));
 }
 
-bool reciveData() {
+bool NRF_receive() {
   radio.startListening();
 
   long time = millis();
@@ -169,25 +171,26 @@ void loop() {
     data_send.channel[i] = map(ch[i].value, 0, 4098, 0, 255);
   }
 
-  /*
-  for (int i = 0; i < int (sizeof(data_send.channel) / sizeof(data_send.channel[0])); i++) {
-    Serial.print("ch: ");
-    Serial.print(i);
-    Serial.print(" - ");
-    Serial.print(data_send.channel[i]);
-    if (data_send.channel[i] < 10)
-      Serial.print("  ");
-    else if (data_send.channel[i] < 100)
-      Serial.print(" ");
-    Serial.print(" || ");
-  }
-  */
+  #ifdef DEBUG
+      for (int i = 0; i < int (sizeof(data_send.channel) / sizeof(data_send.channel[0])); i++) {
+        Serial.print("ch: ");
+        Serial.print(i);
+        Serial.print(" - ");
+        Serial.print(data_send.channel[i]);
+        if (data_send.channel[i] < 10)
+          Serial.print("  ");
+        else if (data_send.channel[i] < 100)
+          Serial.print(" ");
+        Serial.print(" || ");
+        
+        Serial.println();
+      }
+  #endif
 
 
-  //Serial.println();
 
-  sendData();
+  NRF_send();
 
-  //if (reciveData())
+  //if (NRF_receive())
   //  Serial.println("recived");
 }
