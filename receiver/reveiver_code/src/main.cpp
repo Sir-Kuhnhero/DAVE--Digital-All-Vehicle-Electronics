@@ -229,7 +229,7 @@ void setup() {
   XBee_init();
 
   #ifdef DEBUG
-      Debug_delay();
+      // Debug_delay();
   #endif
 }
 
@@ -300,19 +300,19 @@ void loop() {
   loopTime = millis() - curTime;
 
 
-  //Debug_WaitForSerial();
+  Debug_WaitForSerial();
 
   Serial.println("Try sending...");
   XBee_send();
 
-  //Debug_delay();
+  // Debug_delay();
 
-  Serial.print("Try receiving...");
+  // Serial.print("Try receiving...");
 
-  if (XBee_receive())
-    Serial.print("True");
+  //if (XBee_receive())
+  //  Serial.print("True");
 
   Serial.println();
 
-  delay(1000);
+  // delay(1000);
 }

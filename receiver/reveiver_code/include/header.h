@@ -40,6 +40,7 @@ extern int loopTime;
     bool XBee_init();
     bool XBee_send();
     bool XBee_receive();
+    void receive();
 #endif
 
 
