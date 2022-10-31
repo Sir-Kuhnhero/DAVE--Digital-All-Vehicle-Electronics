@@ -226,6 +226,8 @@ void setup() {
       }   
   #endif
 
+  XBee_init();
+
   #ifdef DEBUG
       Debug_delay();
   #endif
@@ -281,7 +283,7 @@ void loop() {
 
 
   #ifdef DEBUG
-      Debug_Serial_out();
+      // Debug_Serial_out();
   #endif
 
   #ifdef log_ENABLE
@@ -294,5 +296,23 @@ void loop() {
   LED_state = !LED_state;  // blink LED
   digitalWrite(LED_PIN, LED_state);
 
+
   loopTime = millis() - curTime;
+
+
+  //Debug_WaitForSerial();
+
+  Serial.println("Try sending...");
+  XBee_send();
+
+  //Debug_delay();
+
+  Serial.print("Try receiving...");
+
+  if (XBee_receive())
+    Serial.print("True");
+
+  Serial.println();
+
+  delay(1000);
 }

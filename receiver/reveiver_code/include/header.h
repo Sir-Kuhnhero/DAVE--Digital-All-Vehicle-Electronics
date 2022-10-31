@@ -12,7 +12,8 @@ extern int loopTime;
 // ================================================================
 // ===                          radio                           ===
 // ================================================================
-#define NRF24
+//#define NRF24
+#define XBee
 
 #ifdef NRF24
     struct Data_Package_receive {
@@ -33,6 +34,12 @@ extern int loopTime;
     bool NRF_receive();
     bool NRF_send();
     void NRF_failsave();
+#endif
+
+#ifdef XBee
+    bool XBee_init();
+    bool XBee_send();
+    bool XBee_receive();
 #endif
 
 
@@ -224,13 +231,13 @@ extern int loopTime;
 // ================================================================
 // ===                          debug                           ===
 // ================================================================
-// #define DEBUG
+ #define DEBUG
 
-#define NRF_SERIAL_out
-#define VOLTAGE_SERIAL_out
-#define IMU_SERIAL_out
-#define BMP_SERIAL_out
-#define HMC_SERIAL_out
+//#define NRF_SERIAL_out
+//#define VOLTAGE_SERIAL_out
+//#define IMU_SERIAL_out
+//#define BMP_SERIAL_out
+//#define HMC_SERIAL_out
 
 #pragma region preventError
     // if DEBUG is not enabled no data should be printed over the serial monitor
