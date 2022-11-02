@@ -22,19 +22,19 @@ void Debug_Serial_out() {
               
     #ifdef NRF_SERIAL_out
         Serial.print("reviveTime: ");
-        Serial.print(receiveTime);
+        Serial.print(NRF_receive_time);
         Serial.print(" || ");
                  
-        for (int i = 0; i < int (sizeof(data_receive.channel) / sizeof(data_receive.channel[0])); i++) {
+        for (int i = 0; i < int (sizeof(NRF_data_receive.RF_data) / sizeof(NRF_data_receive.RF_data[0])); i++) {
             Serial.print("ch: ");
             Serial.print(i);
             Serial.print(" - ");
-            Serial.print(data_receive.channel[i]);
+            Serial.print(NRF_data_receive.RF_data[i]);
                  
-            if (data_receive.channel[i] < 10) {
+            if (NRF_data_receive.RF_data[i] < 10) {
                 Serial.print("  ");
             }
-            else if (data_receive.channel[i] < 100) {
+            else if (NRF_data_receive.RF_data[i] < 100) {
                 Serial.print(" ");
             }
             

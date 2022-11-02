@@ -12,23 +12,26 @@ extern int loopTime;
 // ================================================================
 // ===                          radio                           ===
 // ================================================================
-//#define NRF24
+// #define NRF24
 #define XBee
 
+const int numbOfBytes_send = 6;
+const int numbOfBytes_received = 0;
+
 #ifdef NRF24
-    struct Data_Package_receive {
-      byte channel[6];
+    struct NRF_Data_Packet_receive {
+      uint8_t RF_data[numbOfBytes_received];
     };
     
-    struct Data_Package_send {
-      byte x = 100;
+    struct NRF_Data_Packet_send {
+      uint8_t RF_data[numbOfBytes_send];
     };
     
-    extern Data_Package_receive data_receive;
-    extern Data_Package_send data_send;
+    extern NRF_Data_Packet_receive NRF_data_receive;
+    extern NRF_Data_Packet_send NRF_data_send;
     
-    extern long receiveTime;  // time the NRF24 took to receive data
-    extern bool receivePass;  // true if NRF24 is able to receive data
+    extern long NRF_receive_time;  // time the NRF24 took to receive data
+    extern bool NRF_receive_pass;  // true if NRF24 is able to receive data
     
     bool NRF_init();
     bool NRF_receive();
@@ -37,10 +40,42 @@ extern int loopTime;
 #endif
 
 #ifdef XBee
+    struct XBee_Data_Packet_receive {
+        byte Length[2];
+        byte Address_64Bit[8];
+        byte Address_16Bit[2];
+        byte options;
+
+        byte RF_data[numbOfBytes_received];
+
+        byte checksum_receive;
+    };
+
+    struct XBee_Data_Packet_send {
+        uint8_t Length[2];
+        uint8_t Frame_ID = 0x01;
+        uint8_t Address_64Bit[8] = {0x00 , 0x13 , 0xA2 , 0x00 , 0x41 , 0xBB , 0xA0 , 0x59};
+        uint8_t Address_16Bit[2] = {0xFF, 0xFE};
+        uint8_t Broadcast_radius = 0x00;
+        uint8_t options = 0x00;
+
+        uint8_t RF_data[numbOfBytes_send] = {0x00};
+
+        uint8_t checksum_Transmit_Request;  // gets calculated automatically
+
+        // if a packet is received the sender will get a confirmation
+        uint8_t retry_count;
+        uint8_t Delivery_status;
+        uint8_t Discovery_status;
+        uint8_t checksum_Transmit_Status;
+    };
+
+    extern XBee_Data_Packet_send XBee_data_send;
+    extern XBee_Data_Packet_receive XBee_data_receive;
+
     bool XBee_init();
     bool XBee_send();
     bool XBee_receive();
-    void receive();
 #endif
 
 
@@ -144,7 +179,11 @@ extern int loopTime;
 #define HMC_log
 
 #pragma region preventError
-    // if loging is not enabled no data can be logged
+    // if SD_Card is not enabled no data can be logged
+    #ifndef SD_Card
+        #undef log_ENABLE
+    #endif
+    // if logging is not enabled no data can be logged
     #ifndef log_ENABLE
         #undef NRF_log
         #undef VOLTAGE_log
@@ -232,17 +271,21 @@ extern int loopTime;
 // ================================================================
 // ===                          debug                           ===
 // ================================================================
- #define DEBUG
+#define DEBUG
+// #define SERIAL_out
 
-//#define NRF_SERIAL_out
-//#define VOLTAGE_SERIAL_out
-//#define IMU_SERIAL_out
-//#define BMP_SERIAL_out
-//#define HMC_SERIAL_out
+#define NRF_SERIAL_out
+#define VOLTAGE_SERIAL_out
+#define IMU_SERIAL_out
+#define BMP_SERIAL_out
+#define HMC_SERIAL_out
 
 #pragma region preventError
     // if DEBUG is not enabled no data should be printed over the serial monitor
     #ifndef DEBUG
+        #undef SERIAL_out
+    #endif
+    #ifndef SERIAL_out
         #undef NRF_SERIAL_out
         #undef VOLTAGE_SERIAL_out
         #undef IMU_SERIAL_out

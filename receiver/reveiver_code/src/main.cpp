@@ -149,7 +149,10 @@ void criticalError(int errorCode) {
     return;
   }
   
-  Serial.println(errorCode);
+  #ifndef DEBUG
+      Serial.println(errorCode);
+  #endif
+  
   digitalWrite(LED_PIN, HIGH);
   delay(100);
   digitalWrite(LED_PIN, LOW);
@@ -229,7 +232,7 @@ void setup() {
   XBee_init();
 
   #ifdef DEBUG
-      // Debug_delay();
+      Debug_delay();
   #endif
 }
 
@@ -249,6 +252,11 @@ void loop() {
 
       // send Data
       NRF_send();
+  #endif
+
+  #ifdef XBee
+      XBee_send();
+      XBee_receive();
   #endif
 
   #ifdef VOLTAGE
@@ -282,8 +290,8 @@ void loop() {
   
 
 
-  #ifdef DEBUG
-      // Debug_Serial_out();
+  #ifdef SERIAL_out
+      Debug_Serial_out();
   #endif
 
   #ifdef log_ENABLE
@@ -298,21 +306,4 @@ void loop() {
 
 
   loopTime = millis() - curTime;
-
-
-  Debug_WaitForSerial();
-
-  Serial.println("Try sending...");
-  XBee_send();
-
-  // Debug_delay();
-
-  // Serial.print("Try receiving...");
-
-  //if (XBee_receive())
-  //  Serial.print("True");
-
-  Serial.println();
-
-  // delay(1000);
 }

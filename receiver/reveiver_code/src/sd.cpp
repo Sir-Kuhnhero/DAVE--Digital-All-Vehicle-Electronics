@@ -90,9 +90,9 @@ bool SD_write_log() {
         #pragma endregion
 
         #ifdef NRF_log
-            // currently only receiveTime and conPass is being loged
-            stringToWrite = stringToWrite + ";" + receiveTime;
-            stringToWrite = stringToWrite + ";" + receivePass;
+            // currently only NRF_receive_time and NRF_receive_pass is being loged
+            stringToWrite = stringToWrite + ";" + NRF_receive_time;
+            stringToWrite = stringToWrite + ";" + NRF_receive_pass;
         #endif
 
         #ifdef VOLTAGE_log
@@ -168,7 +168,7 @@ bool SD_write_logHeader() {
         stringToWrite = stringToWrite + ";" + "loopTime";
 
         #ifdef NRF_log
-            stringToWrite = stringToWrite + ";" + "receiveTime";
+            stringToWrite = stringToWrite + ";" + "NRF_receive_Time";
             stringToWrite = stringToWrite + ";" + "NRF_receive";
         #endif
 
