@@ -21,11 +21,12 @@ void Debug_Serial_out() {
     Serial.print(" || ");
               
     #ifdef NRF_SERIAL_out
+        Serial.print("NRF- ");
         Serial.print("reviveTime: ");
         Serial.print(NRF_receive_time);
         Serial.print(" || ");
                  
-        for (int i = 0; i < int (sizeof(NRF_data_receive.RF_data) / sizeof(NRF_data_receive.RF_data[0])); i++) {
+        for (int i = 0; i < sizeof(NRF_data_receive.RF_data); i++) {
             Serial.print("ch: ");
             Serial.print(i);
             Serial.print(" - ");
@@ -35,6 +36,26 @@ void Debug_Serial_out() {
                 Serial.print("  ");
             }
             else if (NRF_data_receive.RF_data[i] < 100) {
+                Serial.print(" ");
+            }
+            
+            Serial.print(" || ");
+        }
+    #endif
+
+    #ifdef XBee_SERIAL_out
+        Serial.print("XBee- ");
+                 
+        for (int i = 0; i < sizeof(XBee_data_Receive_Packet.RF_data); i++) {
+            Serial.print("ch: ");
+            Serial.print(i);
+            Serial.print(" - ");
+            Serial.print(XBee_data_Receive_Packet.RF_data[i]);
+                 
+            if (XBee_data_Receive_Packet.RF_data[i] < 10) {
+                Serial.print("  ");
+            }
+            else if (XBee_data_Receive_Packet.RF_data[i] < 100) {
                 Serial.print(" ");
             }
             

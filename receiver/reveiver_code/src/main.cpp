@@ -141,29 +141,29 @@ int loopTime;
 
 
 void criticalError(int errorCode) {
-  // this funktion will keep on looping until an input to the Serial line restarts the Teensy
-  if (Serial.available()) {
-    Serial.println("restart");
-    Serial.clear();
-    setup();
-    return;
-  }
-  
-  #ifndef DEBUG
-      Serial.println(errorCode);
-  #endif
-  
-  digitalWrite(LED_PIN, HIGH);
-  delay(100);
-  digitalWrite(LED_PIN, LOW);
-  delay(100);
-  digitalWrite(LED_PIN, HIGH);
-  delay(100);
-  digitalWrite(LED_PIN, LOW);
-  
-  delay(500);
+    // this funktion will keep on looping until an input to the Serial line restarts the Teensy
+    if (Serial.available()) {
+        Serial.println("restart");
+        Serial.clear();
+        setup();
+        return;
+    }
 
-  criticalError(errorCode);
+    #ifndef DEBUG
+        Serial.println(errorCode);
+    #endif
+
+    digitalWrite(LED_PIN, HIGH);
+    delay(100);
+    digitalWrite(LED_PIN, LOW);
+    delay(100);
+    digitalWrite(LED_PIN, HIGH);
+    delay(100);
+    digitalWrite(LED_PIN, LOW);
+
+    delay(500);
+
+    criticalError(errorCode);
 }
 
 
@@ -171,69 +171,71 @@ void criticalError(int errorCode) {
 // ===                      INITIAL SETUP                       ===
 // ================================================================
 void setup() {
-  Serial.begin(9600);
+    Serial.begin(9600);
 
-  analogReadRes(12);
+    analogReadRes(12);
 
-  pinMode(LED_PIN, OUTPUT);
-  
-  #ifdef DEBUG
-      Debug_WaitForSerial();
-  #endif
+    pinMode(LED_PIN, OUTPUT);
+
+    #ifdef DEBUG
+        Debug_WaitForSerial();
+    #endif
 
 
-  #ifdef NRF24
-      if (!NRF_init()) {
-        criticalError(0);
-      }
-  #endif
+    #ifdef NRF24
+        if (!NRF_init()) {
+            criticalError(0);
+        }
+    #endif
 
-  #ifdef SERVO
-      Servo_init();
-  #endif
+    #ifdef XBee
+        XBee_init();
+    #endif
 
-  #ifdef STEPPER
-      Stepper_init();
-  #endif
+    #ifdef SERVO
+        Servo_init();
+    #endif
 
-  #ifdef VOLTAGE
-      if (!Voltage_init()) {
-        criticalError(1);
-      }
-  #endif
+    #ifdef STEPPER
+        Stepper_init();
+    #endif
 
-  #ifdef IMU
-      if(!IMU_init()) {
-        criticalError(2);
-      }
-  #endif
+    #ifdef VOLTAGE
+        if (!Voltage_init()) {
+            criticalError(1);
+        }
+    #endif
 
-  #ifdef BMP280
-      if(!BMP_init()) {
-        criticalError(3);
-      }
-  #endif
+    #ifdef IMU
+        if(!IMU_init()) {
+            criticalError(2);
+        }
+    #endif
 
-  #ifdef HMC5883
-      if(!HMC_init()) {
-        criticalError(4);
-      }
-  #endif
+    #ifdef BMP280
+        if(!BMP_init()) {
+            criticalError(3);
+        }
+    #endif
 
-  #ifdef SD_Card
-      if (!SD_init()) {
-        criticalError(5);
-      }
-      if (!SD_write_logHeader()) {
-        criticalError(6);
-      }   
-  #endif
+    #ifdef HMC5883
+        if(!HMC_init()) {
+            criticalError(4);
+        }
+    #endif
 
-  XBee_init();
+    #ifdef SD_Card
+        if (!SD_init()) {
+            criticalError(5);
+        }
+        if (!SD_write_logHeader()) {
+            criticalError(6);
+        }   
+    #endif
 
-  #ifdef DEBUG
-      Debug_delay();
-  #endif
+    #ifdef DEBUG
+        //Debug_delay();
+    #endif
 }
 
 
@@ -241,69 +243,68 @@ void setup() {
 // ===                        MAIN LOOP                         ===
 // ================================================================
 void loop() {
-  int long curTime = millis();
-
-  #ifdef NRF24
-      // receive Data
-      if (!NRF_receive()) {
-        // if there is no input received -> reset data to default values
-        NRF_failsave();
-      }
-
-      // send Data
-      NRF_send();
-  #endif
-
-  #ifdef XBee
-      XBee_send();
-      XBee_receive();
-  #endif
-
-  #ifdef VOLTAGE
-      Voltage_read();
-  #endif
-
-  #ifdef IMU
-      IMU_read();
-  #endif
-
-  #ifdef BMP280
-      BMP_read();
-  #endif
-
-  #ifdef HMC5883
-      HMC_read();
-  #endif
+    int long curTime = millis();
 
 
+    #ifdef NRF24
+        // receive Data
+        if (!NRF_receive()) {
+            // if there is no input received -> reset data to default values
+            NRF_failsave();
+        }
 
-  
-  // alloocate received data to outputs and update them
-  #ifdef SERVO
-      Servo_update();
-  #endif
+        // send Data
+        // NRF_send();
+    #endif
 
-  #ifdef STEPPER
-      Stepper_update();
-  #endif
+    #ifdef XBee
+        XBee_receive();
+    #endif
 
-  
+    #ifdef VOLTAGE
+        Voltage_read();
+    #endif
 
+    #ifdef IMU
+        IMU_read();
+    #endif
 
-  #ifdef SERIAL_out
-      Debug_Serial_out();
-  #endif
+    #ifdef BMP280
+        BMP_read();
+    #endif
 
-  #ifdef log_ENABLE
-      SD_write_log();
-  #endif
+    #ifdef HMC5883
+        HMC_read();
+    #endif
 
 
 
+    
+    // alloocate received data to outputs and update them
+    #ifdef SERVO
+        Servo_update();
+    #endif
 
-  LED_state = !LED_state;  // blink LED
-  digitalWrite(LED_PIN, LED_state);
+    #ifdef STEPPER
+        Stepper_update();
+    #endif
+
+    
 
 
-  loopTime = millis() - curTime;
+    #ifdef SERIAL_out
+        Debug_Serial_out();
+    #endif
+
+    #ifdef log_ENABLE
+        SD_write_log();
+    #endif
+
+
+
+
+    LED_state = !LED_state;  // blink LED
+    digitalWrite(LED_PIN, LED_state);
+
+    loopTime = millis() - curTime;
 }

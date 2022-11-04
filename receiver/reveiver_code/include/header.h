@@ -12,11 +12,11 @@ extern int loopTime;
 // ================================================================
 // ===                          radio                           ===
 // ================================================================
-// #define NRF24
-#define XBee
+#define NRF24
+// #define XBee
 
-const int numbOfBytes_send = 6;
-const int numbOfBytes_received = 0;
+const int numbOfBytes_send = 0;
+const int numbOfBytes_received = 6;
 
 #ifdef NRF24
     struct NRF_Data_Packet_receive {
@@ -40,42 +40,61 @@ const int numbOfBytes_received = 0;
 #endif
 
 #ifdef XBee
-    struct XBee_Data_Packet_receive {
-        byte Length[2];
-        byte Address_64Bit[8];
-        byte Address_16Bit[2];
-        byte options;
+    /*----- Start_Delimiter ----- Length ----- Frame_Type(Receive_Packet) ----- Address_64Bit ----- Address_16Bit ----- options ----- RF_data ----- checksum -----*/
+    struct XBee_Data_Receive_Packet {
+        uint8_t Length[2];
+        const uint8_t Frame_Type = 0x90;
+        uint8_t Address_64Bit[8];
+        uint8_t Address_16Bit[2];
+        uint8_t options;
 
-        byte RF_data[numbOfBytes_received];
+        uint8_t RF_data[numbOfBytes_received];
 
-        byte checksum_receive;
+        uint8_t checksum;
+
+        long time_stamp;
     };
 
-    struct XBee_Data_Packet_send {
+    /*----- Start_Delimiter ----- Length ----- Frame_Type(Transmit_Status) ----- Frame_ID ----- Address_16Bit ----- retry_count ----- Delivery_status ----- Discovery_status ----- checksum -----*/
+    struct XBee_Data_Transmit_Status {
         uint8_t Length[2];
+        const uint8_t Frame_Type = 0x8B;
+        uint8_t Frame_ID;
+        uint8_t Address_16Bit[2];
+        uint8_t retry_count;
+        uint8_t Delivery_status;
+        uint8_t Discovery_status;
+
+        uint8_t checksum;
+
+        long time_stamp;
+    };
+    
+    /*----- Start_Delimiter ----- Length ----- Frame_Type(Transmit_Request) ----- Frame_ID ----- Address_64Bit ----- Address_16Bit ----- Broadcast_radius ----- options ----- RF_data ----- checksum -----*/
+    struct XBee_Data_Transmit_Request {
+        uint8_t Length[2];
+        const uint8_t Frame_Type = 0x10;
         uint8_t Frame_ID = 0x01;
         uint8_t Address_64Bit[8] = {0x00 , 0x13 , 0xA2 , 0x00 , 0x41 , 0xBB , 0xA0 , 0x59};
         uint8_t Address_16Bit[2] = {0xFF, 0xFE};
         uint8_t Broadcast_radius = 0x00;
         uint8_t options = 0x00;
 
-        uint8_t RF_data[numbOfBytes_send] = {0x00};
+        uint8_t RF_data[numbOfBytes_send];
 
-        uint8_t checksum_Transmit_Request;  // gets calculated automatically
+        uint8_t checksum;  // gets calculated automatically
 
-        // if a packet is received the sender will get a confirmation
-        uint8_t retry_count;
-        uint8_t Delivery_status;
-        uint8_t Discovery_status;
-        uint8_t checksum_Transmit_Status;
+        long time_stamp;
     };
 
-    extern XBee_Data_Packet_send XBee_data_send;
-    extern XBee_Data_Packet_receive XBee_data_receive;
+    extern XBee_Data_Receive_Packet XBee_data_Receive_Packet;
+    extern XBee_Data_Transmit_Status XBee_data_Transmit_Status;
+    extern XBee_Data_Transmit_Request XBee_data_Transmit_Request;
 
     bool XBee_init();
     bool XBee_send();
     bool XBee_receive();
+    void XBee_failsave();
 #endif
 
 
@@ -272,9 +291,10 @@ const int numbOfBytes_received = 0;
 // ===                          debug                           ===
 // ================================================================
 #define DEBUG
-// #define SERIAL_out
+#define SERIAL_out
 
 #define NRF_SERIAL_out
+#define XBee_SERIAL_out
 #define VOLTAGE_SERIAL_out
 #define IMU_SERIAL_out
 #define BMP_SERIAL_out
@@ -287,6 +307,7 @@ const int numbOfBytes_received = 0;
     #endif
     #ifndef SERIAL_out
         #undef NRF_SERIAL_out
+        #undef XBee_SERIAL_out
         #undef VOLTAGE_SERIAL_out
         #undef IMU_SERIAL_out
         #undef BMP_SERIAL_out
@@ -295,6 +316,9 @@ const int numbOfBytes_received = 0;
     // if a module is not implemented it also can not be printed over the serial monitor
     #ifndef NRF24
         #undef NRF_SERIAL_out
+    #endif
+    #ifndef XBee
+        #undef XBee_SERIAL_out
     #endif
     #ifndef VOLTAGE
         #undef VOLTAGE_SERIAL_out
