@@ -77,7 +77,7 @@ bool NRF_send() {
 
 // if nothing is received, the channels should be set to a neutral value
 void NRF_failsave() {
-    for (int i = 0; i < sizeof(NRF_data_receive.RF_data); i++) {
+    for (int i = 0; i < int (sizeof(NRF_data_receive) / sizeof(NRF_data_receive.RF_data[0])); i++) {
       NRF_data_receive.RF_data[i] = 128;
     }
 }
@@ -377,7 +377,7 @@ bool XBee_receive() {
 // if nothing is received, the channels should be set to a neutral value
 void XBee_failsave() {
     for (int i = 0; i < sizeof(XBee_data_Receive_Packet.RF_data); i++) {
-      XBee_data_Receive_Packet.RF_data[i] = 128;
+      ;
     }
 }
 #endif

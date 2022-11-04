@@ -41,11 +41,10 @@
 #include <nRF24L01.h>
 #include <RF24.h>
 
-#define DEBUG
+#include "header.h"
 
-RF24 radio(7, 8);  // CE, CSN
 
-const byte address[6] = "00001";
+int loopTime;
 
 struct ch {
   int value;
@@ -55,37 +54,6 @@ struct ch {
   int deadzone = 0;
 } ch[6];
 
-struct Data_Package_send {
-  byte channel[6];
-} data_send;
-
-struct Data_Package_recive {
-  byte x;
-} data_recive;
-
-void NRF_send() {
-  radio.stopListening();
-  radio.write(&data_send, sizeof(data_send));
-}
-
-bool NRF_receive() {
-  radio.startListening();
-
-  long time = millis();
-
-  while(!(millis() - time > 5))
-  {
-    if (radio.available())
-    {
-      radio.read(&data_recive, sizeof(data_recive));
-
-      return true;
-    }
-  }
-
-  return false;
-}
-
 // ================================================================
 // ===                      INITIAL SETUP                       ===
 // ================================================================
@@ -94,12 +62,17 @@ void setup() {
 
   analogReadRes(12);
 
-  // start radio communication
-  radio.begin();
-  radio.openWritingPipe(address);
-  radio.openReadingPipe(0, address);
-  radio.setPALevel(RF24_PA_MIN);
-  radio.stopListening();
+  #ifdef DEBUG
+      Debug_WaitForSerial();
+  #endif
+
+  #ifdef NRF24
+      NRF_init();
+  #endif
+
+  #ifdef XBee
+      XBee_init();
+  #endif
 
   #pragma region configureChannels
       // connected pin
@@ -145,12 +118,18 @@ void setup() {
       ch[4].deadzone = 50;
       ch[5].deadzone = 50;
   #pragma endregion
+
+  #ifdef DEBUG
+      Debug_delay();
+  #endif
 }
 
 // ================================================================
 // ===                        MAIN LOOP                         ===
 // ================================================================
 void loop() {
+  int long curTime = millis();
+
   // read analog inputs
   for (int i = 0; i < int (sizeof(ch) / sizeof(ch[0])); i++) {
     ch[i].value = analogRead(ch[i].pin);
@@ -168,29 +147,26 @@ void loop() {
   // prepare data for transmission
   for (int i = 0; i < int (sizeof(ch) / sizeof(ch[0])); i++)
   {
-    data_send.channel[i] = map(ch[i].value, 0, 4098, 0, 255);
+    #ifdef NRF24
+        NRF_data_send.RF_data[i] = uint8_t(map(ch[i].value, 0, 4098, 0, 255));
+    #endif
+    #ifdef XBee
+        XBee_data_Transmit_Request.RF_data[i] = uint8_t(map(ch[i].value, 0, 4098, 0, 255));
+    #endif
   }
 
-  #ifdef DEBUG
-      for (int i = 0; i < int (sizeof(data_send.channel) / sizeof(data_send.channel[0])); i++) {
-        Serial.print("ch: ");
-        Serial.print(i);
-        Serial.print(" - ");
-        Serial.print(data_send.channel[i]);
-        if (data_send.channel[i] < 10)
-          Serial.print("  ");
-        else if (data_send.channel[i] < 100)
-          Serial.print(" ");
-        Serial.print(" || ");
-        
-        Serial.println();
-      }
+  #ifdef SERIAL_out
+      Debug_Serial_out();
   #endif
 
 
+  #ifdef NRF24
+      NRF_send();
+  #endif
 
-  NRF_send();
+  #ifdef XBee
+      XBee_send();
+  #endif
 
-  //if (NRF_receive())
-  //  Serial.println("recived");
+  loopTime = millis() - curTime;
 }
